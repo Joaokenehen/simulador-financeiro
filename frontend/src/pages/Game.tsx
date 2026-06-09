@@ -2,6 +2,58 @@ import { useState, useMemo } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { getDilemmas, type Option, type Outcome, type PlayerStatus } from '../data/dilemmas';
 
+// Sintetizador de Áudio 8-bit nativo do navegador
+const playSound = (type: 'roll' | 'good' | 'bad') => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'roll') {
+      // Efeito de dados rolando (vários bipes rápidos em sequência)
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'square';
+          o.frequency.setValueAtTime(200 + Math.random() * 300, ctx.currentTime);
+          g.gain.setValueAtTime(0.05, ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
+          o.connect(g);
+          g.connect(ctx.destination);
+          o.start();
+          o.stop(ctx.currentTime + 0.05);
+        }, i * 60);
+      }
+      return; // O loop acima já faz o trabalho, então retornamos.
+    } else if (type === 'good') {
+      // Efeito de sucesso (Tom agudo subindo)
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(400, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    } else if (type === 'bad') {
+      // Efeito de falha (Tom grave descendo)
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    }
+  } catch (e) {
+    // Ignora silenciosamente se o navegador do usuário bloquear autoplay de áudio
+  }
+};
+
 export default function Game() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -24,6 +76,7 @@ export default function Game() {
   const sobraMensal = salario - despesasFixas; // O que realmente sobra para o jogador
 
   const handleOptionClick = (option: Option) => {
+    playSound('roll');
     // Rola um D20 (Dado de 20 lados)
     const roll = Math.floor(Math.random() * 20) + 1;
     // Pega o resultado correspondente ao valor tirado no dado
@@ -33,7 +86,12 @@ export default function Game() {
 
   const applyOutcome = () => {
     if (!rollResult) return;
+    
     const impact = rollResult.outcome.impact;
+    const type = rollResult.outcome.type;
+
+    if (type === 'good') playSound('good');
+    if (type === 'bad') playSound('bad');
 
     let novoSaldo = status.saldo - impact.custo;
     
