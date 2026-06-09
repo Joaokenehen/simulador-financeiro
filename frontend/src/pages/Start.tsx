@@ -20,8 +20,9 @@ export default function Start() {
     e.preventDefault();
     if (!playerName.trim()) return alert("Digite seu nome para jogar!");
     
-    const initialStatus = difficulty === 'custom' ? customStatus : PRESETS[difficulty];
-    navigate('/game', { state: { playerName, initialStatus } });
+    const initialStatus = difficulty === 'custom' ? { ...customStatus } : { ...PRESETS[difficulty] };
+
+    navigate('/perks', { state: { playerName, initialStatus } });
   };
 
   return (
@@ -100,8 +101,8 @@ export default function Start() {
             </div>
           )}
 
-          <button type="submit" className="w-full py-4 mt-6 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-full text-xl transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.4)]">
-            Iniciar Simulação
+          <button type="submit" className="w-full py-5 mt-6 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-full text-xl transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+            Avançar
           </button>
         </form>
       </div>

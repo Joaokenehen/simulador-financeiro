@@ -9,6 +9,30 @@ export default function Result() {
 
   const finalScore = Math.floor((status.saudeFinanceira + status.qualidadeVida + status.reservaEmergencia) / 3);
 
+  const getGameOverMessage = () => {
+    if (cause === 'burnout') {
+      return (
+        <>
+          <span className="block text-2xl font-black mb-3 text-orange-500">Colapso Mental!</span>
+          O dinheiro na conta não compensou a falta de descanso. Você assumiu uma carga muito pesada, negligenciou seu bem-estar e sofreu um Burnout. Lembre-se: qualidade de vida também é um ativo valiosíssimo!
+        </>
+      );
+    } else {
+      return (
+        <>
+          <span className="block text-2xl font-black mb-3 text-red-500">Bancarrota!</span>
+          O peso das dívidas e dos juros esmagou seu orçamento. O cheque especial virou uma bola de neve e o dinheiro acabou completamente. Um doloroso aprendizado sobre os perigos do crédito descontrolado.
+        </>
+      );
+    }
+  };
+
+  const getVictoryMessage = () => {
+    if (finalScore >= 80) return "Você não apenas sobreviveu, mas prosperou incrivelmente! Tem reservas fortes, saúde mental em dia e dominou o jogo financeiro.";
+    if (finalScore >= 50) return "O ano teve seus imprevistos e desafios, mas você conseguiu manter a cabeça fora d'água e fechou o ano de forma admirável. Um ótimo caminho!";
+    return "Você chegou a dezembro, mas está no absoluto limite. Faltou pouco para o colapso total. No próximo ano, tente focar mais em equilibrar seus gastos e reservas!";
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center py-16 px-4">
       <section className="max-w-2xl w-full bg-slate-800 p-10 rounded-3xl shadow-2xl border border-slate-700 text-center">
@@ -17,11 +41,17 @@ export default function Result() {
         </h2>
         
         {isGameOver ? (
-          <p className="text-lg text-red-400 mb-10 font-bold">
-            {cause === 'burnout' ? 'Você chegou à exaustão extrema (Qualidade de Vida zerou).' : 'Suas dívidas saíram do controle (Falência)!'} <br/> Você resistiu até o Mês {month}.
-          </p>
+          <div className="mb-10 p-6 bg-red-950/30 border border-red-900/50 rounded-2xl">
+            <p className="text-lg text-red-200 font-medium leading-relaxed">{getGameOverMessage()}</p>
+            <div className="mt-5 pt-5 border-t border-red-900/50 text-slate-300 font-bold uppercase tracking-widest text-sm">Você resistiu até o <span className="text-red-400 font-black text-base">Mês {month}</span></div>
+          </div>
         ) : (
-          <p className="text-lg text-slate-300 mb-10 font-medium">Você sobreviveu aos 12 meses. Veja como terminou o seu ano.</p>
+          <div className="mb-10 p-6 bg-slate-900/50 border border-slate-700/50 rounded-2xl shadow-inner">
+            <span className={`block text-2xl font-black mb-3 ${finalScore >= 80 ? 'text-green-400' : finalScore >= 50 ? 'text-blue-400' : 'text-yellow-500'}`}>
+              {finalScore >= 80 ? 'Magnata Financeiro!' : finalScore >= 50 ? 'Sobrevivente Resiliente!' : 'Por um Fio!'}
+            </span>
+            <p className="text-lg text-slate-300 font-medium leading-relaxed">{getVictoryMessage()}</p>
+          </div>
         )}
         
         <div className="grid grid-cols-2 gap-4 mb-8">

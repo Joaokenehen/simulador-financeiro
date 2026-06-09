@@ -75,10 +75,21 @@ export default function Game() {
   const despesasFixas = salario * (percentualCustosFixos / 100);
   const sobraMensal = salario - despesasFixas; // O que realmente sobra para o jogador
 
+  const currentDilemma = dilemmas[currentDilemmaIndex];
+
   const handleOptionClick = (option: Option) => {
     playSound('roll');
     // Rola um D20 (Dado de 20 lados)
-    const roll = Math.floor(Math.random() * 20) + 1;
+    let roll = Math.floor(Math.random() * 20) + 1;
+
+    // Aplica Perks no Dado
+    if (status.perks?.includes('sortudo')) roll += 2;
+    if (status.perks?.includes('azarado')) roll -= 2;
+    if (currentDilemma.isSocial && status.perks?.includes('antissocial')) roll -= 4; // Desvantagem em eventos sociais
+    if (currentDilemma.isFamily && status.perks?.includes('calculista')) roll += 4;
+    if (currentDilemma.isFamily && status.perks?.includes('emocionado')) roll -= 4;
+    roll = Math.max(1, Math.min(20, roll)); // Garante que o dado não passe de 20 ou fique menor que 1
+
     // Pega o resultado correspondente ao valor tirado no dado
     const outcome = option.outcomes.find(o => roll >= o.minRoll && roll <= o.maxRoll) || option.outcomes[0];
     setRollResult({ roll, outcome });
@@ -93,7 +104,30 @@ export default function Game() {
     if (type === 'good') playSound('good');
     if (type === 'bad') playSound('bad');
 
-    let novoSaldo = status.saldo - impact.custo;
+    // Aplica Perks nos Custos
+    let custoFinal = impact.custo;
+    if (status.perks?.includes('gastao')) custoFinal *= 1.2;
+    if (status.perks?.includes('minimalista')) custoFinal *= 0.9;
+
+    // Aplica Perks na Qualidade de Vida (Somente opções 'gratuitas ou baratas' ativam impacto de rejeição social)
+    let qualVidaFinal = impact.qualidadeVida;
+    if (status.perks?.includes('lobo_solitario') && impact.custo <= 0 && qualVidaFinal < 0) {
+      qualVidaFinal = 0; // Lobo solitário ignora perda de qualidade de vida ao ficar de fora
+    }
+    if (status.perks?.includes('fomo') && impact.custo <= 0 && qualVidaFinal < 0) {
+      qualVidaFinal *= 2; // Socialite/FOMO perde o dobro da qualidade de vida ao ficar de fora
+    }
+    if (status.perks?.includes('extrovertido') && currentDilemma.isSocial && qualVidaFinal > 0) {
+      qualVidaFinal = Math.floor(qualVidaFinal * 1.5); // Extrovertido ganha 50% a mais de qualidade de vida
+    }
+    if (status.perks?.includes('desapegado') && currentDilemma.isShopping && qualVidaFinal < 0) {
+      qualVidaFinal = 0; // Desapegado não liga para bens materiais e não perde qualidade de vida
+    }
+    if (status.perks?.includes('consumista') && currentDilemma.isShopping && qualVidaFinal < 0) {
+      qualVidaFinal *= 2; // Consumista sofre o dobro de estresse ao evitar compras
+    }
+
+    let novoSaldo = status.saldo - custoFinal;
     
     let novaReserva = status.reservaEmergencia + impact.reservaEmergencia;
     
@@ -109,7 +143,7 @@ export default function Game() {
       setPenaltyWarning(null);
     }
 
-    const newQualidadeVida = Math.min(100, Math.max(0, status.qualidadeVida + impact.qualidadeVida));
+    const newQualidadeVida = Math.min(100, Math.max(0, status.qualidadeVida + qualVidaFinal));
     const isBurnout = newQualidadeVida <= 0;
     const isFalencia = novoSaldo < -(salario * 2); // Faliu se a dívida for maior que 2 meses de salário
     const isGameOver = isBurnout || isFalencia;
@@ -139,8 +173,6 @@ export default function Game() {
     }
   };
 
-  const currentDilemma = dilemmas[currentDilemmaIndex];
-
   const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   const getBarColor = (value: number) => {
@@ -162,6 +194,13 @@ export default function Game() {
           <span className="text-blue-400 font-bold tracking-widest text-sm uppercase mb-1 block">Mês {currentDilemmaIndex + 1} de 12</span>
           <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 tracking-tight">{months[currentDilemmaIndex]}</h1>
           <p className="text-slate-400 font-medium mt-1">Jogador: <span className="text-slate-200">{playerName}</span></p>
+          {status.perks && status.perks.length > 0 && (
+            <div className="flex gap-2 mt-2">
+              {status.perks.map(p => (
+                <span key={p} className="text-[10px] uppercase font-bold px-2 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700">{p.replace('_', ' ')}</span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="text-right">
           <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Saldo Atual</span>
@@ -244,15 +283,20 @@ export default function Game() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {currentDilemma.options.map((option, index) => (
-              <button 
-                key={index}
-                onClick={() => handleOptionClick(option)}
-                className="p-5 bg-slate-900 border border-slate-700 rounded-xl text-left hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.2)] transition-all text-slate-300 font-medium text-lg transform hover:-translate-y-1"
-              >
-                {option.text}
-              </button>
-            ))}
+            {currentDilemma.options
+              .filter(option => !option.requiredPerk || status.perks?.includes(option.requiredPerk))
+              .map((option, index) => {
+                const isPerkOption = !!option.requiredPerk;
+                return (
+                <button 
+                  key={index}
+                  onClick={() => handleOptionClick(option)}
+                  className={`p-5 border rounded-xl text-left transition-all transform hover:-translate-y-1 font-medium text-lg ${isPerkOption ? 'bg-gradient-to-r from-purple-900/40 to-slate-900 border-purple-500 text-purple-200 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] shadow-inner' : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.2)]'}`}
+                >
+                  {option.text}
+                </button>
+              )
+            })}
           </div>
         )}
       </section>

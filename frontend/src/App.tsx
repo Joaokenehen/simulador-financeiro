@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Start from './pages/Start';
+import Perks from './pages/Perks';
 import Game from './pages/Game';
 import Result from './pages/Result';
 import Welcome from './pages/Welcome';
@@ -10,6 +11,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Welcome />} />
         <Route path="/start" element={<Start />} />
+        <Route path="/perks" element={<Perks />} />
         <Route path="/game" element={<Game />} />
         <Route path="/result" element={<Result />} />
       </Routes>
