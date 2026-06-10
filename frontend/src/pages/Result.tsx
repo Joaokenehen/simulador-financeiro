@@ -55,7 +55,7 @@ export default function Result() {
   const navigate = useNavigate();
 
   if (!location.state) return <Navigate to="/" />;
-  const { playerName, status, month, isGameOver, cause } = location.state;
+  const { playerName, status, month, isGameOver, cause, history } = location.state;
 
   const finalScore = Math.floor((status.saudeFinanceira + status.qualidadeVida + status.reservaEmergencia) / 3);
 
@@ -140,18 +140,54 @@ export default function Result() {
           </div>
         )}
         
-        <div className="grid grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-2xl shadow-inner">
-            <span className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Saldo Final</span>
-            <span className={`text-3xl font-black ${status.saldo >= 0 ? 'text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.4)]' : 'text-red-400 drop-shadow-[0_0_10px_rgba(248,113,113,0.4)]'}`}>
+            <span className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Saldo Final</span>
+            <span className={`text-xl md:text-2xl font-black ${status.saldo >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               R$ {status.saldo.toFixed(2)}
             </span>
           </div>
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-2xl shadow-inner">
-            <span className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Score Financeiro</span>
-            <span className="text-3xl font-black text-blue-400 drop-shadow-[0_0_10px_rgba(96,165,250,0.4)]">{finalScore} / 100</span>
+            <span className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Saúde Fin.</span>
+            <span className={`text-xl md:text-2xl font-black ${status.saudeFinanceira >= 50 ? 'text-green-400' : 'text-red-400'}`}>{status.saudeFinanceira}%</span>
+          </div>
+          <div className="p-6 bg-slate-900 border border-slate-700 rounded-2xl shadow-inner">
+            <span className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Qualidade</span>
+            <span className={`text-xl md:text-2xl font-black ${status.qualidadeVida >= 50 ? 'text-blue-400' : 'text-orange-400'}`}>{status.qualidadeVida}%</span>
+          </div>
+          <div className="p-6 bg-slate-900 border border-slate-700 rounded-2xl shadow-inner">
+            <span className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Reserva</span>
+            <span className={`text-xl md:text-2xl font-black ${status.reservaEmergencia >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{status.reservaEmergencia}%</span>
           </div>
         </div>
+
+        {history && history.length > 0 && (
+          <div className="mb-10 text-left">
+            <h3 className="text-xl font-bold text-slate-100 mb-4 border-b border-slate-700 pb-2">Momentos Marcantes (Recap)</h3>
+            <div className="space-y-3">
+              {[...history].sort((a, b) => {
+                const scoreA = Math.abs(a.custo) + Math.abs(a.qualidadeVida * 30) + Math.abs(a.saudeFinanceira * 30) + Math.abs(a.reserva * 30);
+                const scoreB = Math.abs(b.custo) + Math.abs(b.qualidadeVida * 30) + Math.abs(b.saudeFinanceira * 30) + Math.abs(b.reserva * 30);
+                return scoreB - scoreA;
+              }).slice(0, 3).map((h, i) => (
+                <div key={i} className={`p-4 rounded-xl border-l-4 bg-slate-900/50 ${h.type === 'good' ? 'border-green-500' : h.type === 'bad' ? 'border-red-500' : 'border-slate-500'}`}>
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Mês {h.month} - {h.dilemma}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${h.type === 'good' ? 'bg-green-900/30 text-green-400' : h.type === 'bad' ? 'bg-red-900/30 text-red-400' : 'bg-slate-800 text-slate-300'}`}>{h.type}</span>
+                  </div>
+                  <p className="text-sm text-slate-300 mb-2 italic">"{h.optionText.split(' (Custo')[0]}"</p>
+                  <p className="text-sm font-medium text-slate-100">{h.outcomeMessage}</p>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs font-bold">
+                    {h.custo !== 0 && <span className={h.custo > 0 ? 'text-red-400' : 'text-green-400'}>{h.custo > 0 ? '-' : '+'} R$ {Math.abs(h.custo).toFixed(2)}</span>}
+                    {h.qualidadeVida !== 0 && <span className={h.qualidadeVida > 0 ? 'text-green-400' : 'text-orange-400'}>Vida {h.qualidadeVida > 0 ? '+' : ''}{h.qualidadeVida}%</span>}
+                    {h.saudeFinanceira !== 0 && <span className={h.saudeFinanceira > 0 ? 'text-green-400' : 'text-red-400'}>Saúde {h.saudeFinanceira > 0 ? '+' : ''}{h.saudeFinanceira}%</span>}
+                    {h.reserva !== 0 && <span className={h.reserva > 0 ? 'text-amber-400' : 'text-red-400'}>Reserva {h.reserva > 0 ? '+' : ''}{h.reserva}%</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-10 border-t border-slate-700 pt-10">
           <h3 className="text-2xl font-bold text-slate-100 mb-4">Leaderboard da Comunidade</h3>

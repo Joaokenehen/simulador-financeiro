@@ -67,7 +67,8 @@ export default function Game() {
   const [currentDilemmaIndex, setCurrentDilemmaIndex] = useState(0);
   const [status, setStatus] = useState<PlayerStatus>(initialStatus);
   const [penaltyWarning, setPenaltyWarning] = useState<string | null>(null);
-  const [rollResult, setRollResult] = useState<{ roll: number, outcome: Outcome, baseRoll: number, rollModifier: number } | null>(null);
+  const [rollResult, setRollResult] = useState<{ roll: number, outcome: Outcome, baseRoll: number, rollModifier: number, optionText: string } | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
 
   // Efeito para impedir que o jogador feche a aba acidentalmente
   useEffect(() => {
@@ -124,7 +125,7 @@ export default function Game() {
 
     // Pega o resultado correspondente ao valor tirado no dado
     const outcome = option.outcomes.find(o => roll >= o.minRoll && roll <= o.maxRoll) || option.outcomes[0];
-    setRollResult({ roll, outcome, baseRoll, rollModifier });
+    setRollResult({ roll, outcome, baseRoll, rollModifier, optionText: option.text });
   };
 
   const applyOutcome = () => {
@@ -173,17 +174,20 @@ export default function Game() {
       novaReserva = 0;
     }
 
-    // Mecânica de Sangramento (Bleed): Se a reserva virar o mês zerada, perde 5% de Saúde e Vida
+    // Mecânica de Sangramento (Bleed): Se a reserva virar o mês zerada
     const isSangrando = novaReserva === 0;
-    const sangramento = isSangrando ? 5 : 0;
+    const sangramentoSaude = isSangrando && !status.perks?.includes('inabalavel') ? 5 : 0;
+    const sangramentoVida = isSangrando && status.perks?.includes('ansioso') ? 5 : 0;
 
     let avisos = [];
     if (juros > 0) avisos.push(`Cheque Especial: -R$ ${juros.toFixed(2)}`);
-    if (isSangrando) avisos.push(`Reserva Zerada: -5% Saúde e Vida`);
+    if (sangramentoSaude > 0 && sangramentoVida > 0) avisos.push(`Reserva Zerada: -5% Saúde e Vida`);
+    else if (sangramentoSaude > 0) avisos.push(`Reserva Zerada: -5% Saúde`);
+    else if (sangramentoVida > 0) avisos.push(`Reserva Zerada: -5% Vida`);
     setPenaltyWarning(avisos.length > 0 ? avisos.join(' | ') : null);
 
-    const newSaudeFinanceira = Math.min(100, Math.max(0, status.saudeFinanceira + impact.saudeFinanceira - sangramento));
-    const newQualidadeVida = Math.min(100, Math.max(0, status.qualidadeVida + qualVidaFinal - sangramento));    
+    const newSaudeFinanceira = Math.min(100, Math.max(0, status.saudeFinanceira + impact.saudeFinanceira - sangramentoSaude));
+    const newQualidadeVida = Math.min(100, Math.max(0, status.qualidadeVida + qualVidaFinal - sangramentoVida));    
     const isBurnout = newQualidadeVida <= 0;
     const isFalencia = novoSaldo < -(salario * 2); // Faliu se a dívida for maior que 2 meses de salário
     const isColapso = newSaudeFinanceira <= 0;
@@ -192,6 +196,19 @@ export default function Game() {
     if (currentDilemmaIndex < dilemmas.length - 1 && !isGameOver) {
       novoSaldo += sobraMensal; // Entra a sobra do próximo mês
     }
+
+    const newHistory = [...history, {
+      month: currentDilemmaIndex + 1,
+      dilemma: currentDilemma.title,
+      optionText: rollResult.optionText,
+      outcomeMessage: rollResult.outcome.message,
+      custo: custoFinal + juros,
+      qualidadeVida: qualVidaFinal,
+      saudeFinanceira: impact.saudeFinanceira - sangramentoSaude,
+      reserva: impact.reservaEmergencia,
+      type: type
+    }];
+    setHistory(newHistory);
 
     const newStatus = {
       ...status, // Mantém as Perks e os Custos Fixos intactos para os próximos meses
@@ -211,12 +228,12 @@ export default function Game() {
       } else if (isColapso) {
         cause = 'colapso';
       }
-      navigate('/result', { state: { playerName, status: newStatus, month: currentDilemmaIndex + 1, isGameOver: true, cause } });
+      navigate('/result', { state: { playerName, status: newStatus, month: currentDilemmaIndex + 1, isGameOver: true, cause, history: newHistory } });
     } else if (currentDilemmaIndex < dilemmas.length - 1) {
       setCurrentDilemmaIndex(prev => prev + 1);
     } else {
       // Fim do jogo: navega para a tela de resultados passando o status final
-      navigate('/result', { state: { playerName, status: newStatus, month: 12, isGameOver: false } });
+      navigate('/result', { state: { playerName, status: newStatus, month: 12, isGameOver: false, history: newHistory } });
     }
   };
 
@@ -239,8 +256,8 @@ export default function Game() {
   };
 
   // Calcula o impacto final das Perks para exibição na tela
-  const { displayCusto, displayQualidadeVida, appliedPerks, jurosChequeEspecial, vaiSangrar } = useMemo(() => {
-    if (!rollResult) return { displayCusto: 0, displayQualidadeVida: 0, appliedPerks: {}, jurosChequeEspecial: 0, vaiSangrar: false };
+  const { displayCusto, displayQualidadeVida, appliedPerks, jurosChequeEspecial, sangrarSaude, sangrarVida } = useMemo(() => {
+    if (!rollResult) return { displayCusto: 0, displayQualidadeVida: 0, appliedPerks: {}, jurosChequeEspecial: 0, sangrarSaude: false, sangrarVida: false };
 
     const perks: { custo?: string, vida?: string } = {};
     const impact = rollResult.outcome.impact;
@@ -285,9 +302,11 @@ export default function Game() {
       juros = salario * (deficit / 100) * 3;
     }
     
-    const sangrar = Math.max(0, novaReserva) === 0;
+    const isSangrando = Math.max(0, novaReserva) === 0;
+    const sangrarSaude = isSangrando && !status.perks?.includes('inabalavel');
+    const sangrarVida = isSangrando && !!status.perks?.includes('ansioso');
 
-    return { displayCusto: custo, displayQualidadeVida: qv, appliedPerks: perks, jurosChequeEspecial: juros, vaiSangrar: sangrar };
+    return { displayCusto: custo, displayQualidadeVida: qv, appliedPerks: perks, jurosChequeEspecial: juros, sangrarSaude, sangrarVida };
   }, [rollResult, status.perks, currentDilemma, status.reservaEmergencia, salario]);
 
   return (
@@ -387,7 +406,7 @@ export default function Game() {
                 <div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.reservaEmergencia)}`} style={{ width: `${status.reservaEmergencia}%` }}></div>
               </div>
               <div className="absolute top-full right-0 md:-right-4 mt-2 hidden group-hover:block w-max max-w-[250px] bg-slate-950 text-slate-300 text-[10px] p-3 rounded shadow-2xl border border-slate-700 z-10 pointer-events-none normal-case font-medium leading-relaxed">
-                Sua segurança. <strong className="text-blue-400">Acima de 50%, rende 5% ao mês.</strong><br/><strong className="text-orange-400 mt-1 block">Se chegar a 0%, causa Sangramento (-5% de Saúde e Vida ao mês).</strong><strong className="text-red-400 mt-1 block">Se faltar reserva para um imprevisto, o Cheque Especial cobra 3% do salário base em juros por cada 1% negativo.</strong>
+                Sua segurança. <strong className="text-blue-400">Acima de 50%, rende 5% ao mês.</strong><br/><strong className="text-orange-400 mt-1 block">Se chegar a 0%, causa Sangramento (-5% de Saúde{status.perks?.includes('inabalavel') ? ' (Imune)' : ''}{status.perks?.includes('ansioso') ? ' e Vida' : ''} ao mês).</strong><strong className="text-red-400 mt-1 block">Se faltar reserva para um imprevisto, o Cheque Especial cobra 3% do salário base em juros por cada 1% negativo.</strong>
               </div>
             </div>
             
@@ -457,10 +476,10 @@ export default function Game() {
                  </div>
                )}
                
-               {vaiSangrar && (
+               {(sangrarSaude || sangrarVida) && (
                  <div className="mt-2 bg-orange-950/60 border border-orange-500/50 p-3 rounded-xl shadow-lg animate-pulse">
                    <p className="text-orange-400 text-xs md:text-sm font-black uppercase tracking-wide">
-                     🩸 Sangramento de Reserva: -5% Saúde e Vida!
+                     🩸 Sangramento de Reserva: -5% {sangrarSaude && sangrarVida ? 'Saúde e Vida' : sangrarSaude ? 'Saúde Financeira' : 'Qualidade de Vida'}!
                    </p>
                  </div>
                )}

@@ -28,6 +28,8 @@ export default function Perks() {
     if (id === 'consumista' && selectedPerks.includes('desapegado')) return true;
     if (id === 'calculista' && selectedPerks.includes('emocionado')) return true;
     if (id === 'emocionado' && selectedPerks.includes('calculista')) return true;
+    if (id === 'inabalavel' && selectedPerks.includes('ansioso')) return true;
+    if (id === 'ansioso' && selectedPerks.includes('inabalavel')) return true;
     
     return false;
   };

@@ -46,6 +46,7 @@ export const PERKS = {
     { id: 'extrovertido', label: '🎉 Extrovertido', desc: '+50% Qualidade de Vida em rolês', cost: 2 },
     { id: 'desapegado', label: '🛡️ Desapegado', desc: 'Imune à pressão do consumo (Q.V.)', cost: 2 },
     { id: 'calculista', label: '🧊 Calculista', desc: '+4 no D20 em eventos familiares', cost: 1 },
+    { id: 'inabalavel', label: '🗿 Inabalável', desc: 'Reserva zerada não drena Saúde', cost: 3 },
   ],
   negative: [
     { id: 'azarado', label: '🐈‍⬛ Azarado', desc: '-2 nas rolagens de D20', cost: 3 },
@@ -54,6 +55,7 @@ export const PERKS = {
     { id: 'antissocial', label: '🚷 Antissocial', desc: '-4 no dado em eventos sociais', cost: 2 },
     { id: 'consumista', label: '🛍️ Consumista', desc: 'Dobro de dano na Q.V. ao não comprar', cost: 2 },
     { id: 'emocionado', label: '😭 Emocionado', desc: '-4 no D20 em eventos familiares', cost: 1 },
+    { id: 'ansioso', label: '😰 Ansioso', desc: 'Reserva zerada drena 5% de Vida', cost: 2 },
   ]
 };
 
