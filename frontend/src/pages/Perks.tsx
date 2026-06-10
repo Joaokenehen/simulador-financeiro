@@ -15,10 +15,11 @@ export default function Perks() {
   const isPerkDisabled = (id: string) => {
     if (selectedPerks.includes(id)) return false;
 
-    if (id === 'lobo_solitario' && selectedPerks.includes('antissocial')) return true;
-    if (id === 'antissocial' && selectedPerks.includes('lobo_solitario')) return true;
-    if (id === 'extrovertido' && selectedPerks.includes('fomo')) return true;
-    if (id === 'fomo' && selectedPerks.includes('extrovertido')) return true;
+    // Traços Conflitantes (Vantagem vs Desvantagem Exata)
+    if (id === 'lobo_solitario' && selectedPerks.includes('fomo')) return true;
+    if (id === 'fomo' && selectedPerks.includes('lobo_solitario')) return true;
+    if (id === 'extrovertido' && selectedPerks.includes('antissocial')) return true;
+    if (id === 'antissocial' && selectedPerks.includes('extrovertido')) return true;
     if (id === 'minimalista' && selectedPerks.includes('gastao')) return true;
     if (id === 'gastao' && selectedPerks.includes('minimalista')) return true;
     if (id === 'sortudo' && selectedPerks.includes('azarado')) return true;
