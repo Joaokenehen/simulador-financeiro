@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type PlayerStatus } from '../data/dilemmas';
+import toast from 'react-hot-toast';
 
 const PRESETS: Record<string, PlayerStatus> = {
   hard: { saldo: 1630, saudeFinanceira: 30, qualidadeVida: 30, reservaEmergencia: 10, custosFixos: 60 },
@@ -18,7 +19,10 @@ export default function Start() {
 
   const handleStartGame = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!playerName.trim()) return alert("Digite seu nome para jogar!");
+    if (!playerName.trim()) {
+      toast.error("Digite seu nome para começar a jornada!");
+      return;
+    }
     
     const initialStatus = difficulty === 'custom' ? { ...customStatus } : { ...PRESETS[difficulty] };
 

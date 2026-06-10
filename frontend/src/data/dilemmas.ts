@@ -38,6 +38,25 @@ export interface PlayerStatus {
   perks?: string[];
 }
 
+export const PERKS = {
+  positive: [
+    { id: 'sortudo', label: '🍀 Sortudo', desc: '+2 nas rolagens de D20', cost: 3 },
+    { id: 'minimalista', label: '🧘 Minimalista', desc: '-10% de custos no geral', cost: 3 },
+    { id: 'lobo_solitario', label: '🐺 Lobo Solitário', desc: 'Não se estressa ao ficar em casa', cost: 2 },
+    { id: 'extrovertido', label: '🎉 Extrovertido', desc: '+50% Qualidade de Vida em rolês', cost: 2 },
+    { id: 'desapegado', label: '🛡️ Desapegado', desc: 'Imune à pressão do consumo (Q.V.)', cost: 2 },
+    { id: 'calculista', label: '🧊 Calculista', desc: '+4 no D20 em eventos familiares', cost: 1 },
+  ],
+  negative: [
+    { id: 'azarado', label: '🐈‍⬛ Azarado', desc: '-2 nas rolagens de D20', cost: 3 },
+    { id: 'gastao', label: '💸 Gastão', desc: '+20% de custos no geral', cost: 3 },
+    { id: 'fomo', label: '💃 Socialite (FOMO)', desc: 'Sofre o dobro ao ficar de fora das saidinhas', cost: 2 },
+    { id: 'antissocial', label: '🚷 Antissocial', desc: '-4 no dado em eventos sociais', cost: 2 },
+    { id: 'consumista', label: '🛍️ Consumista', desc: 'Dobro de dano na Q.V. ao não comprar', cost: 2 },
+    { id: 'emocionado', label: '😭 Emocionado', desc: '-4 no D20 em eventos familiares', cost: 1 },
+  ]
+};
+
 export const getDilemmas = (salary: number): Dilemma[] => {
   // Multiplicador baseado em um salário base de R$ 3000
   // Um salário de R$ 15.000 terá custos 5x maiores (IPVA de 1200 vai pra 6000)
@@ -368,6 +387,14 @@ export const getDilemmas = (salary: number): Dilemma[] => {
             { minRoll: 16, maxRoll: 18, type: 'good', message: "Resistência de ferro! A velha TV ainda serve muito bem e seu caixa está forte.", impact: { saudeFinanceira: +30, qualidadeVida: +5, reservaEmergencia: +15, custo: 0 } },
             { minRoll: 19, maxRoll: 20, type: 'good', message: "Um amigo foi morar fora e te doou a TV 4k dele de graça! Paciência recompensada.", impact: { saudeFinanceira: +35, qualidadeVida: +35, reservaEmergencia: +15, custo: 0 } }
           ] 
+        },
+        { 
+          text: `✨ [Desapegado] Rir da promoção, fechar o site e ir ler um livro que você já tem (Custo: R$ 0)`, 
+          requiredPerk: 'desapegado',
+          outcomes: [
+            { minRoll: 1, maxRoll: 10, type: 'good', message: "Você leu metade de um livro incrível e percebeu que não precisa de telas gigantes para ser feliz.", impact: { saudeFinanceira: +35, qualidadeVida: +40, reservaEmergencia: +15, custo: 0 } },
+            { minRoll: 11, maxRoll: 20, type: 'good', message: "Você até doou sua TV velha e agora sua sala tem um espaço Zen. Paz financeira e mental absurda!", impact: { saudeFinanceira: +40, qualidadeVida: +60, reservaEmergencia: +20, custo: 0 } }
+          ] 
         }
       ]
     },
@@ -405,6 +432,14 @@ export const getDilemmas = (salary: number): Dilemma[] => {
             { minRoll: 11, maxRoll: 15, type: 'neutral', message: "Ninguém sentiu muito sua falta. Foi uma noite banal lavando a louça de casa.", impact: { saudeFinanceira: +15, qualidadeVida: -5, reservaEmergencia: 0, custo: 0 } },
             { minRoll: 16, maxRoll: 18, type: 'good', message: "Eles mandaram mensagem dizendo que o restaurante era uma furada! Você riu de alívio no sofá.", impact: { saudeFinanceira: +20, qualidadeVida: +15, reservaEmergencia: 0, custo: 0 } },
             { minRoll: 19, maxRoll: 20, type: 'good', message: "Todos pegaram virose da comida cara! Você escapou e foi o único saudável na segunda.", impact: { saudeFinanceira: +25, qualidadeVida: +30, reservaEmergencia: 0, custo: 0 } }
+          ] 
+        },
+        { 
+          text: `✨ [Lobo Solitário] Ignorar as mensagens, desligar o celular e curtir sua própria companhia (Custo: R$ 0)`, 
+          requiredPerk: 'lobo_solitario',
+          outcomes: [
+            { minRoll: 1, maxRoll: 10, type: 'good', message: "Você preparou uma janta maravilhosa só para você e dormiu cedo. Uma noite perfeita de paz!", impact: { saudeFinanceira: +25, qualidadeVida: +35, reservaEmergencia: 0, custo: 0 } },
+            { minRoll: 11, maxRoll: 20, type: 'good', message: "Paz absoluta! Nenhuma notificação. Você zerou aquele jogo que queria e recarregou a bateria social 100%.", impact: { saudeFinanceira: +30, qualidadeVida: +55, reservaEmergencia: 0, custo: 0 } }
           ] 
         }
       ]
@@ -528,6 +563,14 @@ export const getDilemmas = (salary: number): Dilemma[] => {
             { minRoll: 11, maxRoll: 15, type: 'neutral', message: "Se empanturrou de miojo sozinho, viu um filme, foi dormir e o dinheiro continuou rendendo.", impact: { saudeFinanceira: +45, qualidadeVida: -10, reservaEmergencia: +35, custo: 0 } },
             { minRoll: 16, maxRoll: 18, type: 'good', message: "Paz e silêncio. Um retiro espiritual pessoal e com seu suado 13º rendendo muito na carteira.", impact: { saudeFinanceira: +50, qualidadeVida: +15, reservaEmergencia: +45, custo: 0 } },
             { minRoll: 19, maxRoll: 20, type: 'good', message: "A família viajou e você pôde curtir a paz absoluta com a carteira transbordando dividendos!", impact: { saudeFinanceira: +55, qualidadeVida: +35, reservaEmergencia: +50, custo: 0 } }
+          ] 
+        },
+        { 
+          text: `✨ [Calculista] Organizar uma ceia colaborativa em planilha, cobrando todos antes da festa (Custo: R$ ${c(50)})`, 
+          requiredPerk: 'calculista',
+          outcomes: [
+            { minRoll: 1, maxRoll: 10, type: 'good', message: "Seu plano funcionou perfeitamente. A família te achou super organizado(a) e ninguém faliu!", impact: { saudeFinanceira: +30, qualidadeVida: +25, reservaEmergencia: +10, custo: c(50) } },
+            { minRoll: 11, maxRoll: 20, type: 'good', message: "Eficiência cirúrgica! Você cobrou os parentes folgados adiantado e até sobrou dinheiro no caixa da ceia.", impact: { saudeFinanceira: +45, qualidadeVida: +40, reservaEmergencia: +20, custo: -c(100) } }
           ] 
         }
       ]

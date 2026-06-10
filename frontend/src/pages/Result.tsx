@@ -1,4 +1,54 @@
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
+import Confetti from 'react-confetti';
+
+const playResultSound = (type: 'victory' | 'survive' | 'gameover') => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+
+    const playTone = (freq: number, wave: OscillatorType, startTime: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = wave;
+      osc.frequency.setValueAtTime(freq, startTime);
+      
+      // Envelope de volume para evitar estalos no som
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(0.1, startTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+
+    const now = ctx.currentTime;
+
+    if (type === 'victory') {
+      // Efeito de Vitória com confetes (Arpejo triunfante e feliz)
+      playTone(440, 'sine', now, 0.2); // Nota A4
+      playTone(554.37, 'sine', now + 0.15, 0.2); // Nota C#5
+      playTone(659.25, 'sine', now + 0.3, 0.2); // Nota E5
+      playTone(880, 'sine', now + 0.45, 0.6); // Nota A5 longa
+    } else if (type === 'survive') {
+      // Efeito de Sobrevivência (Toque de alívio)
+      playTone(440, 'triangle', now, 0.2);
+      playTone(659.25, 'triangle', now + 0.25, 0.4);
+    } else if (type === 'gameover') {
+      // Efeito de Game Over (Trombone triste / Notas graves descendo)
+      playTone(300, 'sawtooth', now, 0.4);
+      playTone(285, 'sawtooth', now + 0.35, 0.4);
+      playTone(270, 'sawtooth', now + 0.7, 0.4);
+      playTone(250, 'sawtooth', now + 1.05, 0.8);
+    }
+  } catch (e) {
+    // Ignora se o navegador bloquear autoplay de áudio
+  }
+};
 
 export default function Result() {
   const location = useLocation();
@@ -9,8 +59,35 @@ export default function Result() {
 
   const finalScore = Math.floor((status.saudeFinanceira + status.qualidadeVida + status.reservaEmergencia) / 3);
 
+  // Rastreador do tamanho da tela para o Confete cobrir tudo
+  const [windowDimension, setWindowDimension] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowDimension({ width: window.innerWidth, height: window.innerHeight });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const showConfetti = !isGameOver && finalScore >= 50; // Confetes apenas se sobreviver e não ficar "Por um fio"
+
+  useEffect(() => {
+    // Dispara o som apropriado assim que a tela carrega
+    if (isGameOver) playResultSound('gameover');
+    else if (showConfetti) playResultSound('victory');
+    else playResultSound('survive');
+  }, [isGameOver, showConfetti]);
+
   const getGameOverMessage = () => {
-    if (cause === 'burnout') {
+    if (cause === 'colapso') {
+      return (
+        <>
+          <span className="block text-2xl font-black mb-3 text-yellow-500">Colapso Financeiro!</span>
+          Sua saúde financeira chegou a zero. Você tomou tantas decisões ruins que, mesmo com dinheiro em conta, sua reputação e capacidade de crédito foram destruídas. Ninguém mais confia em você.
+        </>
+      );
+    } else if (cause === 'burnout') {
       return (
         <>
           <span className="block text-2xl font-black mb-3 text-orange-500">Colapso Mental!</span>
@@ -35,6 +112,15 @@ export default function Result() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center py-16 px-4">
+      {showConfetti && (
+        <Confetti
+          width={windowDimension.width}
+          height={windowDimension.height}
+          recycle={false} // Faz os confetes caírem apenas uma vez, como uma explosão
+          numberOfPieces={400}
+          gravity={0.15}
+        />
+      )}
       <section className="max-w-2xl w-full bg-slate-800 p-10 rounded-3xl shadow-2xl border border-slate-700 text-center">
         <h2 className={`text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r mb-4 tracking-tight ${isGameOver ? 'from-red-500 to-orange-400' : 'from-green-400 to-blue-500'}`}>
           {isGameOver ? 'GAME OVER!' : `Parabéns, ${playerName}!`}

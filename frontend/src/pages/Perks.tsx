@@ -1,25 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { type PlayerStatus } from '../data/dilemmas';
-
-const PERKS = {
-  positive: [
-    { id: 'sortudo', label: '🍀 Sortudo', desc: '+2 nas rolagens de D20', cost: 3 },
-    { id: 'minimalista', label: '🧘 Minimalista', desc: '-10% de custos no geral', cost: 3 },
-    { id: 'lobo_solitario', label: '🐺 Lobo Solitário', desc: 'Não se estressa ao ficar em casa', cost: 2 },
-    { id: 'extrovertido', label: '🎉 Extrovertido', desc: '+50% Qualidade de Vida em rolês', cost: 2 },
-    { id: 'desapegado', label: '🛡️ Desapegado', desc: 'Imune à pressão do consumo (Q.V.)', cost: 2 },
-    { id: 'calculista', label: '🧊 Calculista', desc: '+4 no D20 em eventos familiares', cost: 1 },
-  ],
-  negative: [
-    { id: 'azarado', label: '🐈‍⬛ Azarado', desc: '-2 nas rolagens de D20', cost: 3 },
-    { id: 'gastao', label: '💸 Gastão', desc: '+20% de custos no geral', cost: 3 },
-    { id: 'fomo', label: '💃 Socialite (FOMO)', desc: 'Sofre o dobro ao ficar de fora das saidinhas', cost: 2 },
-    { id: 'antissocial', label: '🚷 Antissocial', desc: '-4 no dado em eventos sociais', cost: 2 },
-    { id: 'consumista', label: '🛍️ Consumista', desc: 'Dobro de dano na Q.V. ao não comprar', cost: 2 },
-    { id: 'emocionado', label: '😭 Emocionado', desc: '-4 no D20 em eventos familiares', cost: 1 },
-  ]
-};
+import { PERKS, type PlayerStatus } from '../data/dilemmas';
+import toast from 'react-hot-toast';
 
 export default function Perks() {
   const location = useLocation();
@@ -67,7 +49,8 @@ export default function Perks() {
 
   const handleContinue = () => {
     if (pointsAvailable < 0) {
-      return alert("Você tem pontos negativos! Selecione mais desvantagens para ganhar pontos ou remova vantagens para equilibrar seu personagem.");
+      toast.error("Você tem pontos negativos! Adicione defeitos ou remova vantagens para equilibrar.");
+      return;
     }
     
     const statusWithPerks = { ...initialStatus, perks: selectedPerks };

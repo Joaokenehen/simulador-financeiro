@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { getDilemmas, type Option, type Outcome, type PlayerStatus } from '../data/dilemmas';
+import { getDilemmas, PERKS, type Option, type Outcome, type PlayerStatus } from '../data/dilemmas';
 
 // Sintetizador de Áudio 8-bit nativo do navegador
 const playSound = (type: 'roll' | 'good' | 'bad') => {
@@ -67,32 +67,52 @@ export default function Game() {
   const [currentDilemmaIndex, setCurrentDilemmaIndex] = useState(0);
   const [status, setStatus] = useState<PlayerStatus>(initialStatus);
   const [penaltyWarning, setPenaltyWarning] = useState<string | null>(null);
-  const [rollResult, setRollResult] = useState<{ roll: number, outcome: Outcome } | null>(null);
+  const [rollResult, setRollResult] = useState<{ roll: number, outcome: Outcome, baseRoll: number, rollModifier: number } | null>(null);
 
   // Cálculos do sistema de Salário Mensal e Custos Fixos
   const salario = initialStatus.saldo;
   const percentualCustosFixos = initialStatus.custosFixos ?? 60;
   const despesasFixas = salario * (percentualCustosFixos / 100);
-  const sobraMensal = salario - despesasFixas; // O que realmente sobra para o jogador
+  
+  // NOVO: Rendimentos de Investimento (Reserva >= 50% rende 5% ao mês sobre o valor guardado)
+  const rendimentoReserva = status.reservaEmergencia >= 50 ? (salario * (status.reservaEmergencia / 100)) * 0.05 : 0;
+  const sobraMensal = (salario - despesasFixas) + rendimentoReserva; // O que realmente sobra para o jogador
+  const valorAporte = salario * 0.1; // Custo de 10% do salário para cada 10% de reserva comprada
+
+  const handleInvest = () => {
+    if (status.saldo >= valorAporte && status.reservaEmergencia < 100) {
+      playSound('good');
+      setStatus(prev => ({
+        ...prev,
+        saldo: prev.saldo - valorAporte,
+        reservaEmergencia: Math.min(100, prev.reservaEmergencia + 10)
+      }));
+      setPenaltyWarning(null); // Limpa o alerta vermelho imediatamente ao investir
+    }
+  };
 
   const currentDilemma = dilemmas[currentDilemmaIndex];
 
   const handleOptionClick = (option: Option) => {
     playSound('roll');
     // Rola um D20 (Dado de 20 lados)
-    let roll = Math.floor(Math.random() * 20) + 1;
+    const baseRoll = Math.floor(Math.random() * 20) + 1;
+    let roll = baseRoll;
+    let rollModifier = 0;
 
     // Aplica Perks no Dado
-    if (status.perks?.includes('sortudo')) roll += 2;
-    if (status.perks?.includes('azarado')) roll -= 2;
-    if (currentDilemma.isSocial && status.perks?.includes('antissocial')) roll -= 4; // Desvantagem em eventos sociais
-    if (currentDilemma.isFamily && status.perks?.includes('calculista')) roll += 4;
-    if (currentDilemma.isFamily && status.perks?.includes('emocionado')) roll -= 4;
+    if (status.perks?.includes('sortudo')) rollModifier += 2;
+    if (status.perks?.includes('azarado')) rollModifier -= 2;
+    if (currentDilemma.isSocial && status.perks?.includes('antissocial')) rollModifier -= 4; // Desvantagem em eventos sociais
+    if (currentDilemma.isFamily && status.perks?.includes('calculista')) rollModifier += 4;
+    if (currentDilemma.isFamily && status.perks?.includes('emocionado')) rollModifier -= 4;
+
+    roll += rollModifier;
     roll = Math.max(1, Math.min(20, roll)); // Garante que o dado não passe de 20 ou fique menor que 1
 
     // Pega o resultado correspondente ao valor tirado no dado
     const outcome = option.outcomes.find(o => roll >= o.minRoll && roll <= o.maxRoll) || option.outcomes[0];
-    setRollResult({ roll, outcome });
+    setRollResult({ roll, outcome, baseRoll, rollModifier });
   };
 
   const applyOutcome = () => {
@@ -138,23 +158,26 @@ export default function Game() {
       const juros = salario * (deficit / 100) * 2;
       novoSaldo -= juros;
       novaReserva = 0;
-      setPenaltyWarning(`Cheque especial! Juros de R$ ${juros.toFixed(2)} cobrados por falta de reserva.`);
+      setPenaltyWarning(`Cheque especial! Juros de R$ ${juros.toFixed(2)} cobrados no último mês.`);
     } else {
       setPenaltyWarning(null);
     }
 
-    const newQualidadeVida = Math.min(100, Math.max(0, status.qualidadeVida + qualVidaFinal));
+    const newSaudeFinanceira = Math.min(100, Math.max(0, status.saudeFinanceira + impact.saudeFinanceira));
+    const newQualidadeVida = Math.min(100, Math.max(0, status.qualidadeVida + qualVidaFinal));    
     const isBurnout = newQualidadeVida <= 0;
     const isFalencia = novoSaldo < -(salario * 2); // Faliu se a dívida for maior que 2 meses de salário
-    const isGameOver = isBurnout || isFalencia;
+    const isColapso = newSaudeFinanceira <= 0;
+    const isGameOver = isBurnout || isFalencia || isColapso;
 
     if (currentDilemmaIndex < dilemmas.length - 1 && !isGameOver) {
       novoSaldo += sobraMensal; // Entra a sobra do próximo mês
     }
 
     const newStatus = {
+      ...status, // Mantém as Perks e os Custos Fixos intactos para os próximos meses
       saldo: novoSaldo,
-      saudeFinanceira: Math.min(100, Math.max(0, status.saudeFinanceira + impact.saudeFinanceira)),
+      saudeFinanceira: newSaudeFinanceira,
       qualidadeVida: newQualidadeVida,
       reservaEmergencia: Math.min(100, novaReserva),
     };
@@ -163,7 +186,12 @@ export default function Game() {
     setRollResult(null); // Reseta o estado do dado
 
     if (isGameOver) {
-      const cause = isBurnout ? 'burnout' : 'falencia';
+      let cause = 'falencia';
+      if (isBurnout) {
+        cause = 'burnout';
+      } else if (isColapso) {
+        cause = 'colapso';
+      }
       navigate('/result', { state: { playerName, status: newStatus, month: currentDilemmaIndex + 1, isGameOver: true, cause } });
     } else if (currentDilemmaIndex < dilemmas.length - 1) {
       setCurrentDilemmaIndex(prev => prev + 1);
@@ -187,6 +215,60 @@ export default function Game() {
     return { text: 'from-red-500 to-orange-500', bg: 'bg-red-900/20 border-red-500/30' };
   };
 
+  const getPerkInfo = (id: string) => {
+    return PERKS.positive.find(p => p.id === id) || PERKS.negative.find(p => p.id === id);
+  };
+
+  // Calcula o impacto final das Perks para exibição na tela
+  const { displayCusto, displayQualidadeVida, appliedPerks, jurosChequeEspecial } = useMemo(() => {
+    if (!rollResult) return { displayCusto: 0, displayQualidadeVida: 0, appliedPerks: {}, jurosChequeEspecial: 0 };
+
+    const perks: { custo?: string, vida?: string } = {};
+    const impact = rollResult.outcome.impact;
+    let custo = impact.custo;
+    let qv = impact.qualidadeVida;
+
+    if (status.perks?.includes('gastao')) {
+      custo *= 1.2;
+      perks.custo = getPerkInfo('gastao')?.label;
+    }
+    if (status.perks?.includes('minimalista')) {
+      custo *= 0.9;
+      perks.custo = getPerkInfo('minimalista')?.label;
+    }
+    
+    if (status.perks?.includes('lobo_solitario') && impact.custo <= 0 && qv < 0) {
+      qv = 0;
+      perks.vida = getPerkInfo('lobo_solitario')?.label;
+    }
+    if (status.perks?.includes('fomo') && impact.custo <= 0 && qv < 0) {
+      qv *= 2;
+      perks.vida = getPerkInfo('fomo')?.label;
+    }
+    if (status.perks?.includes('extrovertido') && currentDilemma.isSocial && qv > 0) {
+      qv = Math.floor(qv * 1.5);
+      perks.vida = getPerkInfo('extrovertido')?.label;
+    }
+    if (status.perks?.includes('desapegado') && currentDilemma.isShopping && qv < 0) {
+      qv = 0;
+      perks.vida = getPerkInfo('desapegado')?.label;
+    }
+    if (status.perks?.includes('consumista') && currentDilemma.isShopping && qv < 0) {
+      qv *= 2;
+      perks.vida = getPerkInfo('consumista')?.label;
+    }
+    
+    // Pré-calcula os juros para avisar o jogador no relatório do turno
+    let novaReserva = status.reservaEmergencia + impact.reservaEmergencia;
+    let juros = 0;
+    if (novaReserva < 0) {
+      const deficit = Math.abs(novaReserva);
+      juros = salario * (deficit / 100) * 2;
+    }
+
+    return { displayCusto: custo, displayQualidadeVida: qv, appliedPerks: perks, jurosChequeEspecial: juros };
+  }, [rollResult, status.perks, currentDilemma, status.reservaEmergencia, salario]);
+
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center py-10 px-4">
       <header className="max-w-2xl w-full flex justify-between items-end mb-8">
@@ -195,10 +277,20 @@ export default function Game() {
           <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 tracking-tight">{months[currentDilemmaIndex]}</h1>
           <p className="text-slate-400 font-medium mt-1">Jogador: <span className="text-slate-200">{playerName}</span></p>
           {status.perks && status.perks.length > 0 && (
-            <div className="flex gap-2 mt-2">
-              {status.perks.map(p => (
-                <span key={p} className="text-[10px] uppercase font-bold px-2 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700">{p.replace('_', ' ')}</span>
-              ))}
+            <div className="flex flex-wrap gap-2 mt-3">
+              {status.perks.map(p => {
+                const perkInfo = getPerkInfo(p);
+                return (
+                  <div key={p} className="group relative flex items-center">
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-600 shadow-sm cursor-help transition-colors hover:bg-slate-700 hover:text-white">
+                      {perkInfo?.label || p}
+                    </span>
+                    <div className="absolute top-full left-0 mt-2 hidden group-hover:block w-max max-w-[200px] bg-slate-950 text-slate-300 text-[10px] p-2 rounded shadow-xl border border-slate-700 z-10 pointer-events-none">
+                      {perkInfo?.desc}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -216,45 +308,76 @@ export default function Game() {
       </header>
 
       {/* Painel do Salário e Custos Fixos Mensais */}
-      <div className="max-w-2xl w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-6 grid grid-cols-3 gap-2 shadow-inner">
-        <div className="text-left">
+      <div className="max-w-2xl w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-6 grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-2 shadow-inner">
+        <div className="text-left md:text-center">
           <span className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider">Salário Base</span>
           <span className="block text-sm md:text-base font-bold text-slate-300">R$ {salario.toFixed(2)}</span>
         </div>
-        <div className="text-center border-x border-slate-700 px-2">
-          <span className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider">Custos Fixos ({percentualCustosFixos}%)</span>
+        <div className="text-right md:text-center md:border-l border-slate-700 px-2">
+          <span className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider">Custos ({percentualCustosFixos}%)</span>
           <span className="block text-sm md:text-base font-bold text-red-400">- R$ {despesasFixas.toFixed(2)}</span>
         </div>
-        <div className="text-right">
-          <span className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider">Sobra do Mês</span>
+        <div className="text-left md:text-center md:border-l border-slate-700 px-2">
+          <span className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider">Rendimentos</span>
+          <span className={`block text-sm md:text-base font-bold ${rendimentoReserva > 0 ? 'text-blue-400 animate-pulse' : 'text-slate-500'}`}>
+            {rendimentoReserva > 0 ? `+ R$ ${rendimentoReserva.toFixed(2)}` : 'R$ 0.00'}
+          </span>
+        </div>
+        <div className="text-right md:text-center md:border-l border-slate-700 px-2">
+          <span className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider">Livre no Mês</span>
           <span className="block text-sm md:text-base font-bold text-green-400">+ R$ {sobraMensal.toFixed(2)}</span>
         </div>
       </div>
 
       <section className="max-w-2xl w-full bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 mb-6">
         <div className="grid gap-4 md:grid-cols-3">
-          <div>
-            <div className="flex justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide">
+          <div className="group relative">
+            <div className="flex justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide cursor-help">
               <span>Saúde Financeira</span>
               {status.saudeFinanceira <= 10 && <span className="text-red-500 animate-pulse">Crítico!</span>}
               <span>{status.saudeFinanceira}%</span>
             </div>
             <div className="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden"><div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.saudeFinanceira)}`} style={{ width: `${status.saudeFinanceira}%` }}></div></div>
+            <div className="absolute top-full left-0 mt-2 hidden group-hover:block w-max max-w-[240px] bg-slate-950 text-slate-300 text-[10px] p-3 rounded shadow-2xl border border-slate-700 z-10 pointer-events-none normal-case font-medium leading-relaxed">
+              Representa sua reputação e score de crédito. Decisões como pegar empréstimos ruins ou atrasar pagamentos (resultados 'bad' no dado) diminuem sua saúde. <strong className="text-yellow-400">Se chegar a 0%, você sofre um Colapso Financeiro, pois ninguém mais confia em você.</strong>
+            </div>
           </div>
-          <div>
-            <div className="flex justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide">
+          <div className="group relative">
+            <div className="flex justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide cursor-help">
               <span>Qualidade de Vida</span>
               <span>{status.qualidadeVida}%</span>
             </div>
             <div className="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden"><div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.qualidadeVida)}`} style={{ width: `${status.qualidadeVida}%` }}></div></div>
-          </div>
-          <div>
-            <div className="flex justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide">
-              <span>Reserva</span>
-              {status.reservaEmergencia <= 10 && <span className="text-red-500 animate-pulse">Esgotada!</span>}
-              <span>{status.reservaEmergencia}%</span>
+            <div className="absolute top-full left-0 md:-left-10 mt-2 hidden group-hover:block w-max max-w-[220px] bg-slate-950 text-slate-300 text-[10px] p-3 rounded shadow-2xl border border-slate-700 z-10 pointer-events-none normal-case font-medium leading-relaxed">
+              Sua saúde mental e bem-estar. <strong className="text-orange-400">Se chegar a 0%, você sofre um Burnout</strong>.
             </div>
-            <div className="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden"><div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.reservaEmergencia)}`} style={{ width: `${status.reservaEmergencia}%` }}></div></div>
+          </div>
+          <div className="flex flex-col">
+            <div className="group relative mb-3">
+              <div className="flex justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide cursor-help">
+                <span>Reserva</span>
+                <div className="flex items-center gap-2">
+                  {status.reservaEmergencia >= 50 && <span className="text-blue-400 animate-pulse text-[10px]">Rendendo!</span>}
+                  {status.reservaEmergencia <= 10 && <span className="text-red-500 animate-pulse">Esgotada!</span>}
+                  <span>{status.reservaEmergencia}%</span>
+                </div>
+              </div>
+              <div className="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden">
+                <div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.reservaEmergencia)}`} style={{ width: `${status.reservaEmergencia}%` }}></div>
+              </div>
+              <div className="absolute top-full right-0 md:-right-4 mt-2 hidden group-hover:block w-max max-w-[250px] bg-slate-950 text-slate-300 text-[10px] p-3 rounded shadow-2xl border border-slate-700 z-10 pointer-events-none normal-case font-medium leading-relaxed">
+                Sua segurança. <strong className="text-blue-400">Acima de 50%, rende 5% ao mês.</strong><br/><strong className="text-red-400 mt-1 block">Se faltar reserva para um imprevisto, o Cheque Especial cobra 2% do salário base em juros por cada 1% negativo.</strong>
+              </div>
+            </div>
+            
+            <button 
+              onClick={handleInvest}
+              disabled={status.saldo < valorAporte || status.reservaEmergencia >= 100 || !!rollResult}
+              className="w-full py-2 px-3 bg-slate-900 border border-slate-700 hover:bg-amber-600 hover:border-amber-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-900 disabled:hover:border-slate-700 text-xs font-bold rounded-lg text-slate-300 transition-all flex justify-between items-center shadow-inner mt-auto"
+            >
+              <span>+ INVESTIR</span>
+              <span className="text-amber-400">R$ {valorAporte.toFixed(2)}</span>
+            </button>
           </div>
         </div>
       </section>
@@ -272,9 +395,46 @@ export default function Game() {
               <p className="text-slate-400 mt-3 font-bold uppercase tracking-widest text-xs">Resultado do D20 
                 <span className="ml-2 bg-slate-800 text-slate-300 px-2 py-1 rounded text-[10px]">{rollResult.outcome.type}</span></p>
             </div>
+            {rollResult.rollModifier !== 0 && (
+              <p className="text-xs text-purple-400 font-semibold -mt-4">
+                (Rolagem: {rollResult.baseRoll} {rollResult.rollModifier > 0 ? `+${rollResult.rollModifier}` : rollResult.rollModifier} por suas Perks)
+              </p>
+            )}
             
             <div className={`p-5 rounded-xl border w-full text-center shadow-inner transition-all ${getOutcomeTheme(rollResult.outcome.type).bg}`}>
                <p className="text-xl md:text-2xl text-slate-200 font-medium leading-relaxed">{rollResult.outcome.message}</p>
+               
+               {/* Mostra o impacto exato com as Perks já aplicadas */}
+               <div className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs md:text-sm font-black uppercase tracking-wider bg-slate-950/40 p-3 rounded-lg border border-slate-900/50">
+                 <div className={`${displayCusto > 0 ? 'text-red-400' : 'text-green-400'} flex items-center gap-2`}>
+                   <span>CUSTO: {displayCusto > 0 ? '-' : '+'} R$ {Math.abs(displayCusto).toFixed(2)}</span>
+                   {appliedPerks.custo && <span className="text-purple-400 text-[10px] normal-case font-bold">({appliedPerks.custo})</span>}
+                 </div>
+                 {displayQualidadeVida !== 0 && (
+                   <div className={`${displayQualidadeVida > 0 ? 'text-green-400' : 'text-red-400'} flex items-center gap-2`}>
+                     <span>VIDA: {displayQualidadeVida > 0 ? '+' : ''}{displayQualidadeVida}%</span>
+                     {appliedPerks.vida && <span className="text-purple-400 text-[10px] normal-case font-bold">({appliedPerks.vida})</span>}
+                   </div>
+                 )}
+                 {rollResult.outcome.impact.saudeFinanceira !== 0 && (
+                   <span className={`${rollResult.outcome.impact.saudeFinanceira > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                     SAÚDE: {rollResult.outcome.impact.saudeFinanceira > 0 ? '+' : ''}{rollResult.outcome.impact.saudeFinanceira}%
+                   </span>
+                 )}
+                 {rollResult.outcome.impact.reservaEmergencia !== 0 && (
+                   <span className={`${rollResult.outcome.impact.reservaEmergencia > 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                     RESERVA: {rollResult.outcome.impact.reservaEmergencia > 0 ? '+' : ''}{rollResult.outcome.impact.reservaEmergencia}%
+                   </span>
+                 )}
+               </div>
+               
+               {jurosChequeEspecial > 0 && (
+                 <div className="mt-4 bg-red-950/60 border border-red-500/50 p-3 rounded-xl shadow-lg animate-pulse">
+                   <p className="text-red-400 text-xs md:text-sm font-black uppercase tracking-wide">
+                     ⚠️ Falta de Reserva: -R$ {jurosChequeEspecial.toFixed(2)} em Juros!
+                   </p>
+                 </div>
+               )}
             </div>
 
             <button onClick={applyOutcome} className="w-full mt-4 py-4 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-xl text-xl transition-all shadow-lg hover:shadow-[0_0_20px_rgba(37,99,235,0.4)]">
