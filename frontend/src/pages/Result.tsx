@@ -72,17 +72,22 @@ export default function Result() {
     if (hasSaved.current) return;
     hasSaved.current = true;
 
+    // Magia do Vite: se estiver rodando local usa o localhost, se estiver na nuvem usa o Render
+    const API_URL = import.meta.env.DEV 
+      ? 'http://localhost:3333/api/leaderboard' 
+      : 'https://api-game-financeiro.onrender.com/api/leaderboard'; // Cole a sua URL gerada no Render aqui!
+
     const saveAndFetchLeaderboard = async () => {
       try {
         // 1. Salva a pontuação no Backend
-        await fetch('http://localhost:3333/api/leaderboard', {
+        await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerName, finalScore, saldo: status.saldo, month, cause: cause || null })
         });
 
         // 2. Busca o Ranking Atualizado
-        const res = await fetch('http://localhost:3333/api/leaderboard');
+        const res = await fetch(API_URL);
         const data = await res.json();
         setLeaderboard(data);
       } catch (error) {
