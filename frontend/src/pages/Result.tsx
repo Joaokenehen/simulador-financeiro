@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import Confetti from 'react-confetti';
 
@@ -61,6 +61,39 @@ export default function Result() {
 
   // Rastreador do tamanho da tela para o Confete cobrir tudo
   const [windowDimension, setWindowDimension] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(true);
+  
+  // Usamos um ref para garantir que o React em StrictMode não salve 2x a pontuação
+  const hasSaved = useRef(false);
+
+  useEffect(() => {
+    if (hasSaved.current) return;
+    hasSaved.current = true;
+
+    const saveAndFetchLeaderboard = async () => {
+      try {
+        // 1. Salva a pontuação no Backend
+        await fetch('http://localhost:3333/api/leaderboard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerName, finalScore, saldo: status.saldo, month, cause: cause || null })
+        });
+
+        // 2. Busca o Ranking Atualizado
+        const res = await fetch('http://localhost:3333/api/leaderboard');
+        const data = await res.json();
+        setLeaderboard(data);
+      } catch (error) {
+        console.error('Erro ao conectar com a API:', error);
+      } finally {
+        setIsLoadingLeaderboard(false);
+      }
+    };
+
+    saveAndFetchLeaderboard();
+  }, [playerName, finalScore, status.saldo, month, cause]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -191,8 +224,40 @@ export default function Result() {
 
         <div className="mt-10 border-t border-slate-700 pt-10">
           <h3 className="text-2xl font-bold text-slate-100 mb-4">Leaderboard da Comunidade</h3>
-          <p className="text-slate-500 mb-10 font-medium">(Backend Node.js será integrado aqui)</p>
           
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden mb-10">
+            {isLoadingLeaderboard ? (
+              <p className="text-slate-500 p-8 font-medium animate-pulse">Carregando ranking global...</p>
+            ) : leaderboard.length > 0 ? (
+              <table className="w-full text-left text-sm text-slate-300">
+                <thead className="bg-slate-800 text-xs uppercase font-black text-slate-400">
+                  <tr>
+                    <th className="px-6 py-4">Jogador</th>
+                    <th className="px-6 py-4 text-center">Score</th>
+                    <th className="px-6 py-4 text-right">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboard.map((entry, idx) => (
+                    <tr key={entry.id || idx} className="border-b border-slate-700/50 last:border-0 hover:bg-slate-800/50 transition-colors">
+                      <td className="px-6 py-4 font-bold flex items-center gap-3">
+                        <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs ${idx === 0 ? 'bg-yellow-500/20 text-yellow-500' : idx === 1 ? 'bg-slate-400/20 text-slate-400' : idx === 2 ? 'bg-amber-700/20 text-amber-500' : 'bg-slate-800 text-slate-500'}`}>{idx + 1}</span>
+                        {entry.playerName}
+                        {entry.playerName === playerName && entry.finalScore === finalScore && entry.saldo === status.saldo && (
+                          <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full uppercase font-black ml-2">Você</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center font-black text-blue-400">{entry.finalScore}</td>
+                      <td className={`px-6 py-4 text-right font-bold ${entry.saldo >= 0 ? 'text-green-400' : 'text-red-400'}`}>R$ {entry.saldo.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-slate-500 p-8 font-medium">Nenhum recorde encontrado. Seja o primeiro!</p>
+            )}
+          </div>
+
           <button 
             onClick={() => navigate('/')}
             className="px-10 py-5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-full text-xl transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.4)]"
