@@ -15,16 +15,27 @@ export default function Start() {
   const [customStatus, setCustomStatus] = useState<PlayerStatus>({
     saldo: 5000, saudeFinanceira: 50, qualidadeVida: 50, reservaEmergencia: 50, custosFixos: 60
   });
+
+  // Estados separados para receber valores em Reais (R$)
+  const [customReservaRs, setCustomReservaRs] = useState<number>(2500);
+  const [customCustosRs, setCustomCustosRs] = useState<number>(3000);
   const navigate = useNavigate();
 
   const handleStartGame = (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim()) {
-      toast.error("Digite seu nome para começar a jornada!");
+      toast.error("Digite seu nome para começar a jornada!", { id: 'empty-name' });
       return;
     }
     
-    const initialStatus = difficulty === 'custom' ? { ...customStatus } : { ...PRESETS[difficulty] };
+    // Converte os valores R$ digitados para a % que o sistema de Game Loop entende
+    const calcPct = (val: number, total: number) => total > 0 ? (val / total) * 100 : 0;
+
+    const initialStatus = difficulty === 'custom' ? { 
+      ...customStatus,
+      reservaEmergencia: calcPct(customReservaRs, customStatus.saldo),
+      custosFixos: calcPct(customCustosRs, customStatus.saldo)
+    } : { ...PRESETS[difficulty] };
 
     navigate('/perks', { state: { playerName, initialStatus } });
   };
@@ -32,7 +43,9 @@ export default function Start() {
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="max-w-xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700">
-        <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 text-center mb-8 drop-shadow-sm tracking-tight">Setup do Jogador</h1>
+        <div className="flex flex-col items-center justify-center mb-8">
+          <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 text-center drop-shadow-sm tracking-tight">Setup do Jogador</h1>
+        </div>
         
         <form onSubmit={handleStartGame} className="flex flex-col gap-5">
           <div>
@@ -83,8 +96,11 @@ export default function Start() {
           {difficulty === 'custom' && (
             <div className="space-y-4 mt-2 p-5 bg-slate-900/50 rounded-2xl border border-slate-700">
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Salário Inicial (R$)</label>
-                <input type="number" min="0" value={customStatus.saldo} onChange={(e) => setCustomStatus({...customStatus, saldo: Number(e.target.value)})} className="w-full p-3 bg-slate-900 border border-slate-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500" />
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">
+                  Salário e Saldo Inicial (R$)
+                  <span className="block text-[10px] text-slate-500 normal-case mt-0.5 mb-1 font-medium">Este é o seu salário e o dinheiro inicial na conta (Máx: R$ 1 Milhão).</span>
+                </label>
+                <input type="number" min="0" max="1000000" value={customStatus.saldo} onChange={(e) => setCustomStatus({...customStatus, saldo: Math.min(1000000, Math.max(0, Number(e.target.value)))})} className="w-full p-3 bg-slate-900 border border-slate-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Saúde Financeira: {customStatus.saudeFinanceira}%</label>
@@ -95,12 +111,12 @@ export default function Start() {
                 <input type="range" min="0" max="100" value={customStatus.qualidadeVida} onChange={(e) => setCustomStatus({...customStatus, qualidadeVida: Number(e.target.value)})} className="w-full accent-purple-500" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Reserva de Emergência: {customStatus.reservaEmergencia}%</label>
-                <input type="range" min="0" max="100" value={customStatus.reservaEmergencia} onChange={(e) => setCustomStatus({...customStatus, reservaEmergencia: Number(e.target.value)})} className="w-full accent-purple-500" />
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Reserva de Emergência Inicial (R$)</label>
+                <input type="number" min="0" value={customReservaRs} onChange={(e) => setCustomReservaRs(Math.max(0, Number(e.target.value)))} className="w-full p-3 bg-slate-900 border border-slate-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Custos Fixos (Aluguel, etc): {customStatus.custosFixos}%</label>
-                <input type="range" min="0" max="100" value={customStatus.custosFixos} onChange={(e) => setCustomStatus({...customStatus, custosFixos: Number(e.target.value)})} className="w-full accent-purple-500" />
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Custos Fixos Mensais (R$)</label>
+                <input type="number" min="0" value={customCustosRs} onChange={(e) => setCustomCustosRs(Math.max(0, Number(e.target.value)))} className="w-full p-3 bg-slate-900 border border-slate-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500" />
               </div>
             </div>
           )}
