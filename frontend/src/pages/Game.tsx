@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { getDilemmas, PERKS, type Option, type Outcome, type PlayerStatus } from '../data/dilemmas';
+import toast from 'react-hot-toast';
 
 // Sintetizador de Áudio 8-bit nativo do navegador
 const playSound = (type: 'roll' | 'good' | 'bad') => {
@@ -70,6 +71,36 @@ export default function Game() {
   const [rollResult, setRollResult] = useState<{ roll: number, outcome: Outcome, baseRoll: number, rollModifier: number, optionText: string } | null>(null);
   const [history, setHistory] = useState<any[]>([]);
 
+  // Estado para evitar spam de cliques (cooldown/tempinho)
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Estado e Função para os Textos Flutuantes Animados (Ganhos e Gastos)
+  const [floatingTexts, setFloatingTexts] = useState<{ id: string, val: number, target: 'saldo' | 'reserva', label?: string }[]>([]);
+
+  const spawnFloatingText = (val: number, target: 'saldo' | 'reserva', label?: string) => {
+    if (val === 0) return;
+    const id = Math.random().toString(36).substring(2, 9);
+    setFloatingTexts(prev => [...prev, { id, val, target, label }]);
+    setTimeout(() => {
+      setFloatingTexts(prev => prev.filter(t => t.id !== id));
+    }, 3000); // Exibe por 3 segundos
+  };
+
+  // Referência para rolar a tela automaticamente
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  // Rola suavemente para o resultado assim que os dados rolam
+  useEffect(() => {
+    if (rollResult && resultRef.current) {
+      resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [rollResult]);
+
+  // Rola suavemente para o topo sempre que um novo mês inicia
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentDilemmaIndex]);
+
   // Efeito para impedir que o jogador feche a aba acidentalmente
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -87,26 +118,69 @@ export default function Game() {
   const percentualCustosFixos = initialStatus.custosFixos ?? 60;
   const despesasFixas = salario * (percentualCustosFixos / 100);
   
-  // NOVO: Rendimentos de Investimento (Reserva >= 50% rende 5% ao mês sobre o valor guardado)
-  const rendimentoReserva = status.reservaEmergencia >= 50 ? (salario * (status.reservaEmergencia / 100)) * 0.05 : 0;
-  const sobraMensal = (salario - despesasFixas) + rendimentoReserva; // O que realmente sobra para o jogador
-  const valorAporte = salario * 0.1; // Custo de 10% do salário para cada 10% de reserva comprada
+  // Conversão da porcentagem da Reserva para Dinheiro Real (100% da Reserva = 1 Salário)
+  const metaReserva = salario; 
+  const valorReservaAtual = (status.reservaEmergencia / 100) * metaReserva;
 
-  const handleInvest = () => {
-    if (status.saldo >= valorAporte && status.reservaEmergencia < 100) {
-      playSound('good');
-      setStatus(prev => ({
-        ...prev,
-        saldo: prev.saldo - valorAporte,
-        reservaEmergencia: Math.min(100, prev.reservaEmergencia + 10)
-      }));
-      setPenaltyWarning(null); // Limpa o alerta vermelho imediatamente ao investir
+  // Estados para o Modal de Gerenciamento da Reserva
+  const [isReserveModalOpen, setIsReserveModalOpen] = useState(false);
+  const [transferAmount, setTransferAmount] = useState<string>('');
+
+  // NOVO: Rendimentos de Investimento (Reserva >= 50% rende 5% ao mês sobre o valor guardado)
+  const rendimentoReserva = status.reservaEmergencia >= 50 ? valorReservaAtual * 0.05 : 0;
+  const sobraMensal = (salario - despesasFixas) + rendimentoReserva; // O que realmente sobra para o jogador
+
+  const handleTransfer = (type: 'investir' | 'resgatar') => {
+    const amount = Number(transferAmount);
+    if (amount <= 0 || isNaN(amount)) {
+      toast.error('Digite um valor válido maior que zero.');
+      return;
     }
+
+    let newSaldo = status.saldo;
+    let newReservaValor = valorReservaAtual;
+
+    if (type === 'investir') {
+      if (amount > newSaldo) {
+        toast.error('Saldo insuficiente na conta!');
+        return;
+      }
+      newSaldo -= amount;
+      newReservaValor += amount;
+      spawnFloatingText(-amount, 'saldo', 'Guardou');
+      spawnFloatingText(amount, 'reserva', 'Aporte');
+      playSound('good');
+    } else { // resgatar
+      if (amount > newReservaValor) {
+        toast.error('Você não tem esse valor disponível na reserva!');
+        return;
+      }
+      newSaldo += amount;
+      newReservaValor -= amount;
+      spawnFloatingText(amount, 'saldo', 'Resgatou');
+      spawnFloatingText(-amount, 'reserva', 'Resgate');
+      playSound('roll'); // Som genérico para o resgate
+    }
+
+    const newReservaPct = (newReservaValor / metaReserva) * 100;
+
+    setStatus(prev => ({
+      ...prev,
+      saldo: newSaldo,
+      reservaEmergencia: newReservaPct
+    }));
+    
+    setTransferAmount('');
+    setIsReserveModalOpen(false);
+    setPenaltyWarning(null); // Limpa alertas se houver
   };
 
   const currentDilemma = dilemmas[currentDilemmaIndex];
 
   const handleOptionClick = (option: Option) => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+
     playSound('roll');
     // Rola um D20 (Dado de 20 lados)
     const baseRoll = Math.floor(Math.random() * 20) + 1;
@@ -126,10 +200,14 @@ export default function Game() {
     // Pega o resultado correspondente ao valor tirado no dado
     const outcome = option.outcomes.find(o => roll >= o.minRoll && roll <= o.maxRoll) || option.outcomes[0];
     setRollResult({ roll, outcome, baseRoll, rollModifier, optionText: option.text });
+
+    // Libera o botão após o resultado aparecer
+    setTimeout(() => setIsProcessing(false), 500);
   };
 
   const applyOutcome = () => {
-    if (!rollResult) return;
+    if (!rollResult || isProcessing) return;
+    setIsProcessing(true);
     
     const impact = rollResult.outcome.impact;
     const type = rollResult.outcome.type;
@@ -141,6 +219,10 @@ export default function Game() {
     let custoFinal = impact.custo;
     if (status.perks?.includes('gastao')) custoFinal *= 1.2;
     if (status.perks?.includes('minimalista')) custoFinal *= 0.9;
+
+    if (custoFinal !== 0) {
+      spawnFloatingText(-custoFinal, 'saldo', custoFinal > 0 ? 'Dilema' : 'Bônus');
+    }
 
     // Aplica Perks na Qualidade de Vida (Somente opções 'gratuitas ou baratas' ativam impacto de rejeição social)
     let qualVidaFinal = impact.qualidadeVida;
@@ -174,6 +256,17 @@ export default function Game() {
       novaReserva = 0;
     }
 
+    if (juros > 0) {
+      spawnFloatingText(-juros, 'saldo', 'Juros C. Especial');
+    }
+
+    const finalReservaPct = Math.max(0, novaReserva);
+    const diffReservaPct = finalReservaPct - status.reservaEmergencia;
+    const diffReservaDinheiro = (diffReservaPct / 100) * metaReserva;
+    if (Math.abs(diffReservaDinheiro) > 0.01) {
+      spawnFloatingText(diffReservaDinheiro, 'reserva', diffReservaDinheiro > 0 ? 'Dilema' : 'Gasto');
+    }
+
     // Mecânica de Sangramento (Bleed): Se a reserva virar o mês zerada
     const isSangrando = novaReserva === 0;
     const sangramentoSaude = isSangrando && !status.perks?.includes('inabalavel') ? 5 : 0;
@@ -194,7 +287,19 @@ export default function Game() {
     const isGameOver = isBurnout || isFalencia || isColapso;
 
     if (currentDilemmaIndex < dilemmas.length - 1 && !isGameOver) {
-      novoSaldo += sobraMensal; // Entra a sobra do próximo mês
+      // Calcula o rendimento baseado na reserva final do mês (após o impacto do dilema)
+      const finalReservaValorReal = (finalReservaPct / 100) * metaReserva;
+      const novoRendimento = finalReservaPct >= 50 ? finalReservaValorReal * 0.05 : 0;
+      
+      novoSaldo += (salario - despesasFixas) + novoRendimento; // Entra a sobra do próximo mês
+      
+      const baseLivre = salario - despesasFixas;
+      if (baseLivre !== 0) {
+        spawnFloatingText(baseLivre, 'saldo', 'Livre do Mês');
+      }
+      if (novoRendimento > 0) {
+        spawnFloatingText(novoRendimento, 'saldo', 'Rendimentos');
+      }
     }
 
     const newHistory = [...history, {
@@ -215,7 +320,7 @@ export default function Game() {
       saldo: novoSaldo,
       saudeFinanceira: newSaudeFinanceira,
       qualidadeVida: newQualidadeVida,
-      reservaEmergencia: Math.min(100, novaReserva),
+      reservaEmergencia: Math.max(0, novaReserva),
     };
 
     setStatus(newStatus);
@@ -231,6 +336,7 @@ export default function Game() {
       navigate('/result', { state: { playerName, status: newStatus, month: currentDilemmaIndex + 1, isGameOver: true, cause, history: newHistory } });
     } else if (currentDilemmaIndex < dilemmas.length - 1) {
       setCurrentDilemmaIndex(prev => prev + 1);
+      setTimeout(() => setIsProcessing(false), 500);
     } else {
       // Fim do jogo: navega para a tela de resultados passando o status final
       navigate('/result', { state: { playerName, status: newStatus, month: 12, isGameOver: false, history: newHistory } });
@@ -311,6 +417,18 @@ export default function Game() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center py-10 px-4">
+      <style>{`
+        @keyframes floatUpFade {
+          0% { opacity: 0; transform: translateY(10px) scale(0.8); }
+          15% { opacity: 1; transform: translateY(0px) scale(1); }
+          80% { opacity: 1; transform: translateY(-10px) scale(1); }
+          100% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+        }
+        .animate-float-up {
+          animation: floatUpFade 3s ease-out forwards;
+        }
+      `}</style>
+
       <header className="max-w-2xl w-full flex justify-between items-end mb-8">
         <div>
           <span className="text-blue-400 font-bold tracking-widest text-sm uppercase mb-1 block">Mês {currentDilemmaIndex + 1} de 12</span>
@@ -334,11 +452,20 @@ export default function Game() {
             </div>
           )}
         </div>
-        <div className="text-right">
+        <div className="text-right flex flex-col items-end">
           <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Saldo Atual</span>
-          <p className={`text-2xl font-black mt-1 ${status.saldo >= 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.4)]' : 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.4)]'}`}>
-            R$ {status.saldo.toFixed(2)}
-          </p>
+          <div className="relative inline-block">
+            <div className="absolute bottom-full right-0 mb-1 flex flex-col items-end pointer-events-none z-50">
+              {floatingTexts.filter(t => t.target === 'saldo').map((t) => (
+                <span key={t.id} className={`whitespace-nowrap font-black text-sm md:text-base animate-float-up ${t.val > 0 ? 'text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]' : 'text-red-400 drop-shadow-[0_0_5px_rgba(248,113,113,0.8)]'}`}>
+                  {t.val > 0 ? '+' : '-'} R$ {Math.abs(t.val).toFixed(2)} <span className="text-[10px] text-slate-200 ml-1">({t.label})</span>
+                </span>
+              ))}
+            </div>
+            <p className={`text-2xl font-black mt-1 ${status.saldo >= 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.4)]' : 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.4)]'}`}>
+              R$ {status.saldo.toFixed(2)}
+            </p>
+          </div>
           {penaltyWarning && (
             <p className="text-xs text-red-400 mt-2 font-bold animate-pulse max-w-[200px] ml-auto text-right">
               ⚠️ {penaltyWarning}
@@ -372,51 +499,62 @@ export default function Game() {
       <section className="max-w-2xl w-full bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 mb-6">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="group relative">
-            <div className="flex justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide cursor-help">
-              <span>Saúde Financeira</span>
-              {status.saudeFinanceira <= 10 && <span className="text-red-500 animate-pulse">Crítico!</span>}
-              <span>{status.saudeFinanceira}%</span>
+            <div className="flex flex-wrap justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide cursor-help items-center gap-1">
+              <span className="whitespace-nowrap">Saúde Financeira</span>
+              <div className="flex items-center gap-2 whitespace-nowrap">
+                {status.saudeFinanceira <= 10 && <span className="text-red-500 animate-pulse">Crítico!</span>}
+                <span>{Math.round(status.saudeFinanceira)}%</span>
+              </div>
             </div>
-            <div className="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden"><div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.saudeFinanceira)}`} style={{ width: `${status.saudeFinanceira}%` }}></div></div>
+            <div className="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden"><div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.saudeFinanceira)}`} style={{ width: `${Math.round(status.saudeFinanceira)}%` }}></div></div>
             <div className="absolute top-full left-0 mt-2 hidden group-hover:block w-max max-w-[240px] bg-slate-950 text-slate-300 text-[10px] p-3 rounded shadow-2xl border border-slate-700 z-10 pointer-events-none normal-case font-medium leading-relaxed">
               Representa sua reputação e score de crédito. Decisões como pegar empréstimos ruins ou atrasar pagamentos (resultados 'bad' no dado) diminuem sua saúde. <strong className="text-yellow-400">Se chegar a 0%, você sofre um Colapso Financeiro, pois ninguém mais confia em você.</strong>
             </div>
           </div>
           <div className="group relative">
-            <div className="flex justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide cursor-help">
-              <span>Qualidade de Vida</span>
-              <span>{status.qualidadeVida}%</span>
+            <div className="flex flex-wrap justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide cursor-help items-center gap-1">
+              <span className="whitespace-nowrap">Qualidade de Vida</span>
+              <span className="whitespace-nowrap">{Math.round(status.qualidadeVida)}%</span>
             </div>
-            <div className="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden"><div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.qualidadeVida)}`} style={{ width: `${status.qualidadeVida}%` }}></div></div>
+            <div className="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden"><div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.qualidadeVida)}`} style={{ width: `${Math.round(status.qualidadeVida)}%` }}></div></div>
             <div className="absolute top-full left-0 md:-left-10 mt-2 hidden group-hover:block w-max max-w-[220px] bg-slate-950 text-slate-300 text-[10px] p-3 rounded shadow-2xl border border-slate-700 z-10 pointer-events-none normal-case font-medium leading-relaxed">
               Sua saúde mental e bem-estar. <strong className="text-orange-400">Se chegar a 0%, você sofre um Burnout</strong>.
             </div>
           </div>
           <div className="flex flex-col">
             <div className="group relative mb-3">
-              <div className="flex justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide cursor-help">
-                <span>Reserva</span>
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap justify-between text-xs mb-2 font-bold text-slate-300 uppercase tracking-wide cursor-help items-center gap-1">
+                <span className="whitespace-nowrap relative">
+                  Reserva <span className="text-blue-400 font-black ml-1">(R$ {valorReservaAtual.toFixed(2)})</span>
+                  <div className="absolute bottom-full left-10 mb-1 flex flex-col items-start pointer-events-none z-50">
+                    {floatingTexts.filter(t => t.target === 'reserva').map((t) => (
+                      <span key={t.id} className={`whitespace-nowrap font-black text-sm animate-float-up ${t.val > 0 ? 'text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.8)]' : 'text-red-400 drop-shadow-[0_0_5px_rgba(248,113,113,0.8)]'}`}>
+                        {t.val > 0 ? '+' : '-'} R$ {Math.abs(t.val).toFixed(2)} <span className="text-[10px] text-slate-200 ml-1">({t.label})</span>
+                      </span>
+                    ))}
+                  </div>
+                </span>
+                <div className="flex items-center gap-2 whitespace-nowrap">
                   {status.reservaEmergencia >= 50 && <span className="text-blue-400 animate-pulse text-[10px]">Rendendo!</span>}
                   {status.reservaEmergencia <= 10 && <span className="text-red-500 animate-pulse">Esgotada!</span>}
-                  <span>{status.reservaEmergencia}%</span>
+                  <span>{Math.round(status.reservaEmergencia)}%</span>
                 </div>
               </div>
               <div className="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden">
-                <div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.reservaEmergencia)}`} style={{ width: `${status.reservaEmergencia}%` }}></div>
+                <div className={`bg-gradient-to-r h-full rounded-full transition-all duration-500 ${getBarColor(status.reservaEmergencia)}`} style={{ width: `${Math.min(100, Math.round(status.reservaEmergencia))}%` }}></div>
               </div>
               <div className="absolute top-full right-0 md:-right-4 mt-2 hidden group-hover:block w-max max-w-[250px] bg-slate-950 text-slate-300 text-[10px] p-3 rounded shadow-2xl border border-slate-700 z-10 pointer-events-none normal-case font-medium leading-relaxed">
-                Sua segurança. <strong className="text-blue-400">Acima de 50%, rende 5% ao mês.</strong><br/><strong className="text-orange-400 mt-1 block">Se chegar a 0%, causa Sangramento (-5% de Saúde{status.perks?.includes('inabalavel') ? ' (Imune)' : ''}{status.perks?.includes('ansioso') ? ' e Vida' : ''} ao mês).</strong><strong className="text-red-400 mt-1 block">Se faltar reserva para um imprevisto, o Cheque Especial cobra 3% do salário base em juros por cada 1% negativo.</strong>
+                Sua segurança. 100% da meta equivale a R$ {metaReserva.toFixed(2)}. <strong className="text-blue-400">Acima de 50%, rende 5% ao mês.</strong><br/><strong className="text-orange-400 mt-1 block">Se chegar a 0%, causa Sangramento (-5% de Saúde{status.perks?.includes('inabalavel') ? ' (Imune)' : ''}{status.perks?.includes('ansioso') ? ' e Vida' : ''} ao mês).</strong><strong className="text-red-400 mt-1 block">Se faltar reserva, o Cheque Especial cobra 3% da meta em juros por cada 1% negativo.</strong>
               </div>
             </div>
             
             <button 
-              onClick={handleInvest}
-              disabled={status.saldo < valorAporte || status.reservaEmergencia >= 100 || !!rollResult}
-              className="w-full py-2 px-3 bg-slate-900 border border-slate-700 hover:bg-amber-600 hover:border-amber-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-900 disabled:hover:border-slate-700 text-xs font-bold rounded-lg text-slate-300 transition-all flex justify-between items-center shadow-inner mt-auto"
+              onClick={() => setIsReserveModalOpen(true)}
+              disabled={!!rollResult || isProcessing}
+              className="w-full py-2 px-3 bg-slate-900 border border-slate-700 hover:bg-blue-600 hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-900 disabled:hover:border-slate-700 text-xs font-bold rounded-lg text-slate-300 transition-all flex justify-between items-center shadow-inner mt-auto"
             >
-              <span>+ INVESTIR</span>
-              <span className="text-amber-400">R$ {valorAporte.toFixed(2)}</span>
+              <span>🏦 GERENCIAR RESERVA</span>
+              <span className="text-blue-400">Abrir Cofre</span>
             </button>
           </div>
         </div>
@@ -427,7 +565,7 @@ export default function Game() {
         <h3 className="text-2xl md:text-3xl font-bold text-slate-100 mb-8 leading-snug">{currentDilemma.context}</h3>
 
         {rollResult ? (
-          <div className="flex flex-col items-center justify-center p-6 space-y-6 bg-slate-900 border border-slate-700 rounded-2xl animate-fade-in shadow-inner">
+          <div ref={resultRef} className="flex flex-col items-center justify-center p-6 space-y-6 bg-slate-900 border border-slate-700 rounded-2xl animate-fade-in shadow-inner">
             <div className="text-center">
               <span className={`text-6xl md:text-7xl font-black text-transparent bg-clip-text drop-shadow-lg animate-bounce inline-block bg-gradient-to-r ${getOutcomeTheme(rollResult.outcome.type).text}`}>
                 🎲 {rollResult.roll}
@@ -452,18 +590,18 @@ export default function Game() {
                  </div>
                  {(displayQualidadeVida !== 0 || appliedPerks.vida) && (
                    <div className={`${displayQualidadeVida > 0 ? 'text-green-400' : (appliedPerks.vida ? 'text-purple-400' : 'text-red-400')} flex items-center gap-2`}>
-                     <span>VIDA: {displayQualidadeVida > 0 ? '+' : ''}{displayQualidadeVida}%</span>
+                   <span>VIDA: {displayQualidadeVida > 0 ? '+' : ''}{Math.round(displayQualidadeVida)}%</span>
                      {appliedPerks.vida && <span className="text-purple-400 text-[10px] normal-case font-bold">({appliedPerks.vida})</span>}
                    </div>
                  )}
                  {rollResult.outcome.impact.saudeFinanceira !== 0 && (
                    <span className={`${rollResult.outcome.impact.saudeFinanceira > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                     SAÚDE: {rollResult.outcome.impact.saudeFinanceira > 0 ? '+' : ''}{rollResult.outcome.impact.saudeFinanceira}%
+                   SAÚDE: {rollResult.outcome.impact.saudeFinanceira > 0 ? '+' : ''}{Math.round(rollResult.outcome.impact.saudeFinanceira)}%
                    </span>
                  )}
                  {rollResult.outcome.impact.reservaEmergencia !== 0 && (
                    <span className={`${rollResult.outcome.impact.reservaEmergencia > 0 ? 'text-amber-400' : 'text-red-400'}`}>
-                     RESERVA: {rollResult.outcome.impact.reservaEmergencia > 0 ? '+' : ''}{rollResult.outcome.impact.reservaEmergencia}%
+                   RESERVA: {rollResult.outcome.impact.reservaEmergencia > 0 ? '+' : ''}{Math.round(rollResult.outcome.impact.reservaEmergencia)}%
                    </span>
                  )}
                </div>
@@ -485,7 +623,7 @@ export default function Game() {
                )}
             </div>
 
-            <button onClick={applyOutcome} className="w-full mt-4 py-4 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-xl text-xl transition-all shadow-lg hover:shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+            <button onClick={applyOutcome} disabled={isProcessing} className="w-full mt-4 py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold rounded-xl text-xl transition-all shadow-lg hover:shadow-[0_0_20px_rgba(37,99,235,0.4)]">
               CONTINUAR
             </button>
           </div>
@@ -499,7 +637,8 @@ export default function Game() {
                 <button 
                   key={index}
                   onClick={() => handleOptionClick(option)}
-                  className={`p-5 border rounded-xl text-left transition-all transform hover:-translate-y-1 font-medium text-lg ${isPerkOption ? 'bg-gradient-to-r from-purple-900/40 to-slate-900 border-purple-500 text-purple-200 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] shadow-inner' : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.2)]'}`}
+                  disabled={isProcessing}
+                  className={`p-5 border rounded-xl text-left transition-all transform hover:-translate-y-1 font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${isPerkOption ? 'bg-gradient-to-r from-purple-900/40 to-slate-900 border-purple-500 text-purple-200 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] shadow-inner' : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.2)]'}`}
                 >
                   {option.text}
                 </button>
@@ -508,6 +647,64 @@ export default function Game() {
           </div>
         )}
       </section>
+
+      {/* MODAL DE GERENCIAMENTO DE RESERVA */}
+      {isReserveModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-800 border border-slate-600 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl animate-fade-in">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-black text-white">Cofre de Emergência</h2>
+              <button onClick={() => setIsReserveModalOpen(false)} className="text-slate-400 hover:text-white p-2 bg-slate-700/50 rounded-full w-8 h-8 flex items-center justify-center transition-colors">✕</button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 shadow-inner">
+                <span className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Saldo Livre</span>
+                <span className={`text-lg md:text-xl font-black ${status.saldo >= 0 ? 'text-green-400' : 'text-red-400'}`}>R$ {status.saldo.toFixed(2)}</span>
+              </div>
+              <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 shadow-inner">
+                <span className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Guardado na Reserva</span>
+                <span className="text-lg md:text-xl font-black text-blue-400">R$ {valorReservaAtual.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-bold text-slate-300 mb-2 uppercase tracking-wide">Valor da Transferência (R$)</label>
+              <input 
+                type="number" 
+                min="0"
+                autoFocus
+                value={transferAmount}
+                onChange={(e) => setTransferAmount(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleTransfer('investir');
+                  }
+                }}
+                placeholder="Ex: 500"
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-4 text-white text-xl font-black focus:ring-2 focus:ring-purple-500 outline-none placeholder-slate-600 transition-all"
+              />
+              <span className="text-[10px] text-slate-500 mt-2 block font-medium">Dica: Pressione "Enter" para Investir rapidamente.</span>
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => handleTransfer('resgatar')}
+                className="flex-1 py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-colors uppercase tracking-widest text-sm"
+              >
+                ↑ Resgatar
+              </button>
+              <button 
+                onClick={() => handleTransfer('investir')}
+                className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-[0_0_15px_rgba(37,99,235,0.4)] uppercase tracking-widest text-sm"
+              >
+                ↓ Investir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

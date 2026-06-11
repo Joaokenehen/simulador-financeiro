@@ -57,7 +57,7 @@ export default function Result() {
   if (!location.state) return <Navigate to="/" />;
   const { playerName, status, month, isGameOver, cause, history } = location.state;
 
-  const finalScore = Math.floor((status.saudeFinanceira + status.qualidadeVida + status.reservaEmergencia) / 3);
+  const finalScore = Math.floor((status.saudeFinanceira + status.qualidadeVida + Math.min(100, status.reservaEmergencia)) / 3);
 
   // Rastreador do tamanho da tela para o Confete cobrir tudo
   const [windowDimension, setWindowDimension] = useState({ width: window.innerWidth, height: window.innerHeight });
@@ -167,14 +167,31 @@ export default function Result() {
         {isGameOver ? (
           <div className="mb-10 p-6 bg-red-950/30 border border-red-900/50 rounded-2xl">
             <p className="text-lg text-red-200 font-medium leading-relaxed">{getGameOverMessage()}</p>
-            <div className="mt-5 pt-5 border-t border-red-900/50 text-slate-300 font-bold uppercase tracking-widest text-sm">Você resistiu até o <span className="text-red-400 font-black text-base">Mês {month}</span></div>
+            <div className="mt-5 pt-5 border-t border-red-900/50 text-slate-300 font-bold uppercase tracking-widest text-sm flex flex-col md:flex-row justify-center gap-2 md:gap-6 items-center">
+              <span>Você resistiu até o <span className="text-red-400 font-black text-base">Mês {month}</span></span>
+              <span className="hidden md:block w-px h-4 bg-red-900/50"></span>
+              <div className="group relative cursor-help flex items-center">
+                <span>Score Final: <span className="text-red-400 font-black text-base">{finalScore}</span></span>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[250px] bg-slate-950 text-slate-300 text-[10px] p-3 rounded shadow-2xl border border-slate-700 z-10 normal-case font-medium leading-relaxed text-center">
+                  O Score é a média da sua <strong className="text-green-400">Saúde Financeira</strong>, <strong className="text-blue-400">Qualidade de Vida</strong> e <strong className="text-amber-400">Reserva</strong> no momento do Game Over.
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="mb-10 p-6 bg-slate-900/50 border border-slate-700/50 rounded-2xl shadow-inner">
             <span className={`block text-2xl font-black mb-3 ${finalScore >= 80 ? 'text-green-400' : finalScore >= 50 ? 'text-blue-400' : 'text-yellow-500'}`}>
               {finalScore >= 80 ? 'Magnata Financeiro!' : finalScore >= 50 ? 'Sobrevivente Resiliente!' : 'Por um Fio!'}
             </span>
-            <p className="text-lg text-slate-300 font-medium leading-relaxed">{getVictoryMessage()}</p>
+            <p className="text-lg text-slate-300 font-medium leading-relaxed mb-6">{getVictoryMessage()}</p>
+            <div className="inline-block px-8 py-4 bg-slate-950 rounded-2xl border border-slate-800 shadow-inner group relative cursor-help transition-colors hover:border-slate-700">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1">Seu Score Global</span>
+              <span className={`text-5xl font-black ${finalScore >= 80 ? 'text-green-400' : finalScore >= 50 ? 'text-blue-400' : 'text-yellow-500'}`}>{finalScore}</span>
+              <span className="text-slate-500 font-bold text-xl ml-1">/ 100</span>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-max max-w-[250px] bg-slate-950 text-slate-300 text-[10px] p-3 rounded shadow-2xl border border-slate-700 z-10 normal-case font-medium leading-relaxed text-center">
+                O Score é calculado pela média final da sua <strong className="text-green-400">Saúde Financeira</strong>, <strong className="text-blue-400">Qualidade de Vida</strong> e <strong className="text-amber-400">Reserva de Emergência</strong>.
+              </div>
+            </div>
           </div>
         )}
         
@@ -187,15 +204,15 @@ export default function Result() {
           </div>
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-2xl shadow-inner">
             <span className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Saúde Fin.</span>
-            <span className={`text-xl md:text-2xl font-black ${status.saudeFinanceira >= 50 ? 'text-green-400' : 'text-red-400'}`}>{status.saudeFinanceira}%</span>
+            <span className={`text-xl md:text-2xl font-black ${status.saudeFinanceira >= 50 ? 'text-green-400' : 'text-red-400'}`}>{Math.round(status.saudeFinanceira)}%</span>
           </div>
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-2xl shadow-inner">
             <span className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Qualidade</span>
-            <span className={`text-xl md:text-2xl font-black ${status.qualidadeVida >= 50 ? 'text-blue-400' : 'text-orange-400'}`}>{status.qualidadeVida}%</span>
+            <span className={`text-xl md:text-2xl font-black ${status.qualidadeVida >= 50 ? 'text-blue-400' : 'text-orange-400'}`}>{Math.round(status.qualidadeVida)}%</span>
           </div>
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-2xl shadow-inner">
             <span className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Reserva</span>
-            <span className={`text-xl md:text-2xl font-black ${status.reservaEmergencia >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{status.reservaEmergencia}%</span>
+            <span className={`text-xl md:text-2xl font-black ${status.reservaEmergencia >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{Math.round(status.reservaEmergencia)}%</span>
           </div>
         </div>
 
@@ -217,9 +234,9 @@ export default function Result() {
                   <p className="text-sm font-medium text-slate-100">{h.outcomeMessage}</p>
                   <div className="mt-2 flex flex-wrap gap-3 text-xs font-bold">
                     {h.custo !== 0 && <span className={h.custo > 0 ? 'text-red-400' : 'text-green-400'}>{h.custo > 0 ? '-' : '+'} R$ {Math.abs(h.custo).toFixed(2)}</span>}
-                    {h.qualidadeVida !== 0 && <span className={h.qualidadeVida > 0 ? 'text-green-400' : 'text-orange-400'}>Vida {h.qualidadeVida > 0 ? '+' : ''}{h.qualidadeVida}%</span>}
-                    {h.saudeFinanceira !== 0 && <span className={h.saudeFinanceira > 0 ? 'text-green-400' : 'text-red-400'}>Saúde {h.saudeFinanceira > 0 ? '+' : ''}{h.saudeFinanceira}%</span>}
-                    {h.reserva !== 0 && <span className={h.reserva > 0 ? 'text-amber-400' : 'text-red-400'}>Reserva {h.reserva > 0 ? '+' : ''}{h.reserva}%</span>}
+                    {h.qualidadeVida !== 0 && <span className={h.qualidadeVida > 0 ? 'text-green-400' : 'text-orange-400'}>Vida {h.qualidadeVida > 0 ? '+' : ''}{Math.round(h.qualidadeVida)}%</span>}
+                    {h.saudeFinanceira !== 0 && <span className={h.saudeFinanceira > 0 ? 'text-green-400' : 'text-red-400'}>Saúde {h.saudeFinanceira > 0 ? '+' : ''}{Math.round(h.saudeFinanceira)}%</span>}
+                    {h.reserva !== 0 && <span className={h.reserva > 0 ? 'text-amber-400' : 'text-red-400'}>Reserva {h.reserva > 0 ? '+' : ''}{Math.round(h.reserva)}%</span>}
                   </div>
                 </div>
               ))}
@@ -263,12 +280,29 @@ export default function Result() {
             )}
           </div>
 
-          <button 
-            onClick={() => navigate('/')}
-            className="px-10 py-5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-full text-xl transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.4)]"
-          >
-            JOGAR NOVAMENTE
-          </button>
+          <div className="mt-12 bg-purple-900/20 border border-purple-500/30 p-6 md:p-8 rounded-3xl shadow-inner">
+            <h3 className="text-xl md:text-2xl font-bold text-purple-300 mb-3">Ajude nosso Projeto de Extensão! 🎓</h3>
+            <p className="text-slate-300 mb-8 text-sm md:text-base leading-relaxed">
+              Por gentileza, reserve 1 minutinho para responder ao formulário abaixo. Ele <strong>não é uma prova ou avaliação de conhecimento</strong>, serve apenas como <strong>comprovação de participação</strong> para o nosso projeto de extensão universitário. Sua ajuda é fundamental!
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <a 
+                href="https://docs.google.com/forms/d/e/1FAIpQLScluuiFYvpz0Q4zCpDY02eqRViZfJ9UNZmiQazgjfg56P6Lyw/viewform?usp=header"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-8 py-4 md:px-10 md:py-5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-full text-lg md:text-xl transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(147,51,234,0.4)] text-center w-full sm:w-auto"
+              >
+                📝 RESPONDER FORMULÁRIO
+              </a>
+              <button 
+                onClick={() => navigate('/')}
+                className="px-8 py-4 md:px-10 md:py-5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-full text-lg md:text-xl transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.4)] w-full sm:w-auto"
+              >
+                JOGAR NOVAMENTE
+              </button>
+            </div>
+          </div>
         </div>
       </section>
     </div>
