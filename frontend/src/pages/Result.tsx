@@ -55,7 +55,7 @@ export default function Result() {
   const navigate = useNavigate();
 
   if (!location.state) return <Navigate to="/" />;
-  const { playerName, status, month, isGameOver, cause, history } = location.state;
+  const { playerName, status, month, isGameOver, cause, history } = location.state as any;
 
   const finalScore = Math.floor((status.saudeFinanceira + status.qualidadeVida + Math.min(100, status.reservaEmergencia)) / 3);
 
