@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import logoImg from '../assets/logo.png';
+import logoImg from '../assets/Logo.png';
 
 export default function Welcome() {
   const navigate = useNavigate();
