@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { PERKS, type PlayerStatus } from '../data/dilemmas';
+import { PERKS } from '../data/dilemmas';
 import toast from 'react-hot-toast';
 
 export default function Perks() {
