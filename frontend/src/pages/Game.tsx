@@ -61,7 +61,7 @@ export default function Game() {
   
   // Resgata os dados da tela inicial. Se a pessoa tentar acessar a rota direto pela URL, volta pro início.
   if (!location.state) return <Navigate to="/" />;
-  const { playerName, initialStatus } = location.state;
+  const { playerName, initialStatus } = location.state as any;
 
   const dilemmas = useMemo(() => getDilemmas(initialStatus.saldo), [initialStatus.saldo]);
 
@@ -272,7 +272,7 @@ export default function Game() {
     const sangramentoSaude = isSangrando && !status.perks?.includes('inabalavel') ? 5 : 0;
     const sangramentoVida = isSangrando && status.perks?.includes('ansioso') ? 5 : 0;
 
-    let avisos = [];
+    let avisos: string[] = [];
     if (juros > 0) avisos.push(`Cheque Especial: -R$ ${juros.toFixed(2)}`);
     if (sangramentoSaude > 0 && sangramentoVida > 0) avisos.push(`Reserva Zerada: -5% Saúde e Vida`);
     else if (sangramentoSaude > 0) avisos.push(`Reserva Zerada: -5% Saúde`);

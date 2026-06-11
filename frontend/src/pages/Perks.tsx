@@ -8,7 +8,7 @@ export default function Perks() {
   const navigate = useNavigate();
 
   if (!location.state) return <Navigate to="/" />;
-  const { playerName, initialStatus } = location.state as { playerName: string, initialStatus: PlayerStatus };
+  const { playerName, initialStatus } = location.state as any;
 
   const [selectedPerks, setSelectedPerks] = useState<string[]>([]);
 
