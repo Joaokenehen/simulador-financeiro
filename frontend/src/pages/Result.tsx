@@ -50,6 +50,24 @@ const playResultSound = (type: 'victory' | 'survive' | 'gameover') => {
   }
 };
 
+const playClickSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.05);
+  } catch (e) {}
+};
+
 export default function Result() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -289,6 +307,7 @@ export default function Result() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <a 
                 href="https://docs.google.com/forms/d/e/1FAIpQLScluuiFYvpz0Q4zCpDY02eqRViZfJ9UNZmiQazgjfg56P6Lyw/viewform?usp=header"
+                onClick={() => playClickSound()}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-8 py-4 md:px-10 md:py-5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-full text-lg md:text-xl transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(147,51,234,0.4)] text-center w-full sm:w-auto"
@@ -296,7 +315,10 @@ export default function Result() {
                 📝 RESPONDER FORMULÁRIO
               </a>
               <button 
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  playClickSound();
+                  navigate('/');
+                }}
                 className="px-8 py-4 md:px-10 md:py-5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-full text-lg md:text-xl transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.4)] w-full sm:w-auto"
               >
                 JOGAR NOVAMENTE

@@ -4,7 +4,7 @@ import { getDilemmas, PERKS, type Option, type Outcome, type PlayerStatus } from
 import toast from 'react-hot-toast';
 
 // Sintetizador de Áudio 8-bit nativo do navegador
-const playSound = (type: 'roll' | 'good' | 'bad') => {
+const playSound = (type: 'roll' | 'good' | 'bad' | 'click') => {
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContext) return;
@@ -49,6 +49,13 @@ const playSound = (type: 'roll' | 'good' | 'bad') => {
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
       osc.start();
       osc.stop(ctx.currentTime + 0.2);
+    } else if (type === 'click') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.05);
     }
   } catch (e) {
     // Ignora silenciosamente se o navegador do usuário bloquear autoplay de áudio
@@ -549,7 +556,10 @@ export default function Game() {
             </div>
             
             <button 
-              onClick={() => setIsReserveModalOpen(true)}
+              onClick={() => {
+                playSound('click');
+                setIsReserveModalOpen(true);
+              }}
               disabled={!!rollResult || isProcessing}
               className="w-full py-2 px-3 bg-slate-900 border border-slate-700 hover:bg-blue-600 hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-900 disabled:hover:border-slate-700 text-xs font-bold rounded-lg text-slate-300 transition-all flex justify-between items-center shadow-inner mt-auto"
             >
@@ -654,7 +664,10 @@ export default function Game() {
           <div className="bg-slate-800 border border-slate-600 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl animate-fade-in">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-black text-white">Cofre de Emergência</h2>
-              <button onClick={() => setIsReserveModalOpen(false)} className="text-slate-400 hover:text-white p-2 bg-slate-700/50 rounded-full w-8 h-8 flex items-center justify-center transition-colors">✕</button>
+              <button onClick={() => {
+                playSound('click');
+                setIsReserveModalOpen(false);
+              }} className="text-slate-400 hover:text-white p-2 bg-slate-700/50 rounded-full w-8 h-8 flex items-center justify-center transition-colors">✕</button>
             </div>
             
             <div className="grid grid-cols-2 gap-4 mb-6">

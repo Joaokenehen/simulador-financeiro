@@ -9,6 +9,24 @@ const PRESETS: Record<string, PlayerStatus> = {
   easy: { saldo: 15000, saudeFinanceira: 80, qualidadeVida: 80, reservaEmergencia: 60, custosFixos: 60 },
 };
 
+const playClickSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.05);
+  } catch (e) {}
+};
+
 export default function Start() {
   const [playerName, setPlayerName] = useState('');
   const [difficulty, setDifficulty] = useState<string>('medium');
@@ -22,6 +40,7 @@ export default function Start() {
   const navigate = useNavigate();
 
   const handleStartGame = (e: React.FormEvent) => {
+    playClickSound();
     e.preventDefault();
     if (!playerName.trim()) {
       toast.error("Digite seu nome para começar a jornada!", { id: 'empty-name' });
@@ -71,7 +90,10 @@ export default function Start() {
                   <button 
                     key={d.id}
                     type="button"
-                    onClick={() => setDifficulty(d.id)}
+                  onClick={() => {
+                    playClickSound();
+                    setDifficulty(d.id);
+                  }}
                     className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1 ${difficulty === d.id ? `bg-slate-900 ${d.color}` : 'bg-slate-800 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700'}`}
                   >
                     <span className="font-black text-lg leading-none">{d.label}</span>
@@ -83,7 +105,10 @@ export default function Start() {
               <div className="flex justify-center">
                 <button 
                   type="button"
-                  onClick={() => setDifficulty('custom')}
+                onClick={() => {
+                  playClickSound();
+                  setDifficulty('custom');
+                }}
                   className={`w-full sm:w-1/2 p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1 ${difficulty === 'custom' ? 'bg-slate-900 border-purple-500 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]' : 'bg-slate-800 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700'}`}
                 >
                   <span className="font-black text-lg leading-none">Personalizado</span>

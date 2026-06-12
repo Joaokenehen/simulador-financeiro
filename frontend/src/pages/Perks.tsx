@@ -3,6 +3,24 @@ import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { PERKS } from '../data/dilemmas';
 import toast from 'react-hot-toast';
 
+const playClickSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.05);
+  } catch (e) {}
+};
+
 export default function Perks() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -35,6 +53,7 @@ export default function Perks() {
   };
 
   const handlePerkClick = (id: string) => {
+    playClickSound();
     if (selectedPerks.includes(id)) {
       setSelectedPerks(selectedPerks.filter(p => p !== id));
     } else {
@@ -51,6 +70,7 @@ export default function Perks() {
   }, 0);
 
   const handleContinue = () => {
+    playClickSound();
     if (pointsAvailable < 0) {
       toast.error("Você tem pontos negativos! Adicione defeitos ou remova vantagens para equilibrar.");
       return;

@@ -1,6 +1,24 @@
 import { useNavigate } from 'react-router-dom';
 import logoImg from '../assets/Logo.png';
 
+const playClickSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.05);
+  } catch (e) {}
+};
+
 export default function Welcome() {
   const navigate = useNavigate();
 
@@ -22,7 +40,10 @@ export default function Welcome() {
         </div>
         
         <button
-          onClick={() => navigate('/start')} // Lembre-se de ajustar a rota para a sua tela de input de nome
+          onClick={() => {
+            playClickSound();
+            navigate('/start');
+          }}
           className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-full text-3xl transition-all transform hover:scale-110 shadow-[0_0_30px_rgba(37,99,235,0.6)] animate-pulse hover:animate-none"
         >
           INCIAR JORNADA
