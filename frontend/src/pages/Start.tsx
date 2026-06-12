@@ -9,6 +9,24 @@ const PRESETS: Record<string, PlayerStatus> = {
   easy: { saldo: 15000, saudeFinanceira: 80, qualidadeVida: 80, reservaEmergencia: 60, custosFixos: 60 },
 };
 
+const playClickSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.05);
+  } catch (e) {}
+};
+
 export default function Start() {
   const [playerName, setPlayerName] = useState('');
   const [difficulty, setDifficulty] = useState<string>('medium');
@@ -22,6 +40,7 @@ export default function Start() {
   const navigate = useNavigate();
 
   const handleStartGame = (e: React.FormEvent) => {
+    playClickSound();
     e.preventDefault();
     if (!playerName.trim()) {
       toast.error("Digite seu nome para começar a jornada!", { id: 'empty-name' });
@@ -42,9 +61,9 @@ export default function Start() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="max-w-xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700">
+      <div className="max-w-xl w-full bg-slate-800 p-6 md:p-8 rounded-3xl shadow-2xl border border-slate-700">
         <div className="flex flex-col items-center justify-center mb-8">
-          <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 text-center drop-shadow-sm tracking-tight">Setup do Jogador</h1>
+          <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 text-center drop-shadow-sm tracking-tight">Setup do Jogador</h1>
         </div>
         
         <form onSubmit={handleStartGame} className="flex flex-col gap-5">
@@ -54,8 +73,8 @@ export default function Start() {
               type="text" 
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              className="w-full p-4 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 text-white outline-none placeholder-slate-500 font-medium transition-colors"
-              placeholder="Ex: João Silva"
+              className="w-full p-3 md:p-4 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 text-white outline-none placeholder-slate-500 font-medium transition-colors"
+              placeholder="Ex: João Gustavo"
             />
           </div>
 
@@ -71,7 +90,10 @@ export default function Start() {
                   <button 
                     key={d.id}
                     type="button"
-                    onClick={() => setDifficulty(d.id)}
+                  onClick={() => {
+                    playClickSound();
+                    setDifficulty(d.id);
+                  }}
                     className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1 ${difficulty === d.id ? `bg-slate-900 ${d.color}` : 'bg-slate-800 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700'}`}
                   >
                     <span className="font-black text-lg leading-none">{d.label}</span>
@@ -83,7 +105,10 @@ export default function Start() {
               <div className="flex justify-center">
                 <button 
                   type="button"
-                  onClick={() => setDifficulty('custom')}
+                onClick={() => {
+                  playClickSound();
+                  setDifficulty('custom');
+                }}
                   className={`w-full sm:w-1/2 p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1 ${difficulty === 'custom' ? 'bg-slate-900 border-purple-500 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]' : 'bg-slate-800 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700'}`}
                 >
                   <span className="font-black text-lg leading-none">Personalizado</span>

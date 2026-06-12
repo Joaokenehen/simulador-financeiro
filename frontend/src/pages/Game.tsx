@@ -4,7 +4,7 @@ import { getDilemmas, PERKS, type Option, type Outcome, type PlayerStatus } from
 import toast from 'react-hot-toast';
 
 // Sintetizador de Áudio 8-bit nativo do navegador
-const playSound = (type: 'roll' | 'good' | 'bad') => {
+const playSound = (type: 'roll' | 'good' | 'bad' | 'click') => {
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContext) return;
@@ -49,6 +49,13 @@ const playSound = (type: 'roll' | 'good' | 'bad') => {
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
       osc.start();
       osc.stop(ctx.currentTime + 0.2);
+    } else if (type === 'click') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.05);
     }
   } catch (e) {
     // Ignora silenciosamente se o navegador do usuário bloquear autoplay de áudio
@@ -429,7 +436,7 @@ export default function Game() {
         }
       `}</style>
 
-      <header className="max-w-2xl w-full flex justify-between items-end mb-8">
+      <header className="max-w-2xl w-full flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-6 md:mb-8">
         <div>
           <span className="text-blue-400 font-bold tracking-widest text-sm uppercase mb-1 block">Mês {currentDilemmaIndex + 1} de 12</span>
           <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 tracking-tight">{months[currentDilemmaIndex]}</h1>
@@ -452,22 +459,24 @@ export default function Game() {
             </div>
           )}
         </div>
-        <div className="text-right flex flex-col items-end">
-          <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Saldo Atual</span>
-          <div className="relative inline-block">
-            <div className="absolute bottom-full right-0 mb-1 flex flex-col items-end pointer-events-none z-50">
-              {floatingTexts.filter(t => t.target === 'saldo').map((t) => (
-                <span key={t.id} className={`whitespace-nowrap font-black text-sm md:text-base animate-float-up ${t.val > 0 ? 'text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]' : 'text-red-400 drop-shadow-[0_0_5px_rgba(248,113,113,0.8)]'}`}>
-                  {t.val > 0 ? '+' : '-'} R$ {Math.abs(t.val).toFixed(2)} <span className="text-[10px] text-slate-200 ml-1">({t.label})</span>
-                </span>
-              ))}
+        <div className="w-full sm:w-auto flex flex-col items-end bg-slate-800/50 sm:bg-transparent p-4 sm:p-0 rounded-2xl border border-slate-700 sm:border-0 shadow-inner sm:shadow-none">
+          <div className="w-full flex justify-between sm:justify-end items-center sm:items-end gap-4">
+            <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Saldo Atual</span>
+            <div className="relative inline-block">
+              <div className="absolute bottom-full right-0 sm:right-0 mb-1 flex flex-col items-end pointer-events-none z-50">
+                {floatingTexts.filter(t => t.target === 'saldo').map((t) => (
+                  <span key={t.id} className={`whitespace-nowrap font-black text-sm md:text-base animate-float-up ${t.val > 0 ? 'text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]' : 'text-red-400 drop-shadow-[0_0_5px_rgba(248,113,113,0.8)]'}`}>
+                    {t.val > 0 ? '+' : '-'} R$ {Math.abs(t.val).toFixed(2)} <span className="text-[10px] text-slate-200 ml-1">({t.label})</span>
+                  </span>
+                ))}
+              </div>
+              <p className={`text-xl sm:text-2xl font-black mt-0 sm:mt-1 ${status.saldo >= 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.4)]' : 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.4)]'}`}>
+                R$ {status.saldo.toFixed(2)}
+              </p>
             </div>
-            <p className={`text-2xl font-black mt-1 ${status.saldo >= 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.4)]' : 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.4)]'}`}>
-              R$ {status.saldo.toFixed(2)}
-            </p>
           </div>
           {penaltyWarning && (
-            <p className="text-xs text-red-400 mt-2 font-bold animate-pulse max-w-[200px] ml-auto text-right">
+            <p className="w-full text-center sm:text-right text-xs text-red-400 mt-2 font-bold animate-pulse sm:max-w-[200px] sm:ml-auto">
               ⚠️ {penaltyWarning}
             </p>
           )}
@@ -549,7 +558,10 @@ export default function Game() {
             </div>
             
             <button 
-              onClick={() => setIsReserveModalOpen(true)}
+              onClick={() => {
+                playSound('click');
+                setIsReserveModalOpen(true);
+              }}
               disabled={!!rollResult || isProcessing}
               className="w-full py-2 px-3 bg-slate-900 border border-slate-700 hover:bg-blue-600 hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-900 disabled:hover:border-slate-700 text-xs font-bold rounded-lg text-slate-300 transition-all flex justify-between items-center shadow-inner mt-auto"
             >
@@ -560,9 +572,9 @@ export default function Game() {
         </div>
       </section>
 
-      <section className="max-w-2xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700">
-        <span className="text-sm font-black text-blue-400 mb-3 block uppercase tracking-widest">{currentDilemma.title}</span>
-        <h3 className="text-2xl md:text-3xl font-bold text-slate-100 mb-8 leading-snug">{currentDilemma.context}</h3>
+      <section className="max-w-2xl w-full bg-slate-800 p-6 md:p-8 rounded-3xl shadow-2xl border border-slate-700">
+        <span className="text-xs md:text-sm font-black text-blue-400 mb-2 md:mb-3 block uppercase tracking-widest">{currentDilemma.title}</span>
+        <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-100 mb-6 md:mb-8 leading-snug">{currentDilemma.context}</h3>
 
         {rollResult ? (
           <div ref={resultRef} className="flex flex-col items-center justify-center p-6 space-y-6 bg-slate-900 border border-slate-700 rounded-2xl animate-fade-in shadow-inner">
@@ -638,7 +650,7 @@ export default function Game() {
                   key={index}
                   onClick={() => handleOptionClick(option)}
                   disabled={isProcessing}
-                  className={`p-5 border rounded-xl text-left transition-all transform hover:-translate-y-1 font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${isPerkOption ? 'bg-gradient-to-r from-purple-900/40 to-slate-900 border-purple-500 text-purple-200 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] shadow-inner' : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.2)]'}`}
+                  className={`p-4 md:p-5 border rounded-xl text-left transition-all transform hover:-translate-y-1 font-medium text-base md:text-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${isPerkOption ? 'bg-gradient-to-r from-purple-900/40 to-slate-900 border-purple-500 text-purple-200 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] shadow-inner' : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.2)]'}`}
                 >
                   {option.text}
                 </button>
@@ -654,10 +666,13 @@ export default function Game() {
           <div className="bg-slate-800 border border-slate-600 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl animate-fade-in">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-black text-white">Cofre de Emergência</h2>
-              <button onClick={() => setIsReserveModalOpen(false)} className="text-slate-400 hover:text-white p-2 bg-slate-700/50 rounded-full w-8 h-8 flex items-center justify-center transition-colors">✕</button>
+              <button onClick={() => {
+                playSound('click');
+                setIsReserveModalOpen(false);
+              }} className="text-slate-400 hover:text-white p-2 bg-slate-700/50 rounded-full w-8 h-8 flex items-center justify-center transition-colors">✕</button>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 shadow-inner">
                 <span className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Saldo Livre</span>
                 <span className={`text-lg md:text-xl font-black ${status.saldo >= 0 ? 'text-green-400' : 'text-red-400'}`}>R$ {status.saldo.toFixed(2)}</span>
@@ -683,12 +698,12 @@ export default function Game() {
                   }
                 }}
                 placeholder="Ex: 500"
-                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-4 text-white text-xl font-black focus:ring-2 focus:ring-purple-500 outline-none placeholder-slate-600 transition-all"
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 md:p-4 text-white text-lg md:text-xl font-black focus:ring-2 focus:ring-purple-500 outline-none placeholder-slate-600 transition-all"
               />
               <span className="text-[10px] text-slate-500 mt-2 block font-medium">Dica: Pressione "Enter" para Investir rapidamente.</span>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button 
                 onClick={() => handleTransfer('resgatar')}
                 className="flex-1 py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-colors uppercase tracking-widest text-sm"

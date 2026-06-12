@@ -50,6 +50,24 @@ const playResultSound = (type: 'victory' | 'survive' | 'gameover') => {
   }
 };
 
+const playClickSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.05);
+  } catch (e) {}
+};
+
 export default function Result() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -149,7 +167,7 @@ export default function Result() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center py-16 px-4">
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center py-8 md:py-16 px-4">
       {showConfetti && (
         <Confetti
           width={windowDimension.width}
@@ -159,8 +177,8 @@ export default function Result() {
           gravity={0.15}
         />
       )}
-      <section className="max-w-2xl w-full bg-slate-800 p-10 rounded-3xl shadow-2xl border border-slate-700 text-center">
-        <h2 className={`text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r mb-4 tracking-tight ${isGameOver ? 'from-red-500 to-orange-400' : 'from-green-400 to-blue-500'}`}>
+      <section className="max-w-2xl w-full bg-slate-800 p-6 md:p-10 rounded-3xl shadow-2xl border border-slate-700 text-center">
+        <h2 className={`text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r mb-4 tracking-tight ${isGameOver ? 'from-red-500 to-orange-400' : 'from-green-400 to-blue-500'}`}>
           {isGameOver ? 'GAME OVER!' : `Parabéns, ${playerName}!`}
         </h2>
         
@@ -218,7 +236,7 @@ export default function Result() {
 
         {history && history.length > 0 && (
           <div className="mb-10 text-left">
-            <h3 className="text-xl font-bold text-slate-100 mb-4 border-b border-slate-700 pb-2">Momentos Marcantes (Recap)</h3>
+            <h3 className="text-lg md:text-xl font-bold text-slate-100 mb-4 border-b border-slate-700 pb-2">Momentos Marcantes (Recap)</h3>
             <div className="space-y-3">
               {[...history].sort((a, b) => {
                 const scoreA = Math.abs(a.custo) + Math.abs(a.qualidadeVida * 30) + Math.abs(a.saudeFinanceira * 30) + Math.abs(a.reserva * 30);
@@ -251,7 +269,8 @@ export default function Result() {
             {isLoadingLeaderboard ? (
               <p className="text-slate-500 p-8 font-medium animate-pulse">Carregando ranking global...</p>
             ) : leaderboard.length > 0 ? (
-              <table className="w-full text-left text-sm text-slate-300">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-300 whitespace-nowrap">
                 <thead className="bg-slate-800 text-xs uppercase font-black text-slate-400">
                   <tr>
                     <th className="px-6 py-4">Jogador</th>
@@ -275,6 +294,7 @@ export default function Result() {
                   ))}
                 </tbody>
               </table>
+              </div>
             ) : (
               <p className="text-slate-500 p-8 font-medium">Nenhum recorde encontrado. Seja o primeiro!</p>
             )}
@@ -289,6 +309,7 @@ export default function Result() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <a 
                 href="https://docs.google.com/forms/d/e/1FAIpQLScluuiFYvpz0Q4zCpDY02eqRViZfJ9UNZmiQazgjfg56P6Lyw/viewform?usp=header"
+                onClick={() => playClickSound()}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-8 py-4 md:px-10 md:py-5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-full text-lg md:text-xl transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(147,51,234,0.4)] text-center w-full sm:w-auto"
@@ -296,7 +317,10 @@ export default function Result() {
                 📝 RESPONDER FORMULÁRIO
               </a>
               <button 
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  playClickSound();
+                  navigate('/');
+                }}
                 className="px-8 py-4 md:px-10 md:py-5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-full text-lg md:text-xl transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.4)] w-full sm:w-auto"
               >
                 JOGAR NOVAMENTE
