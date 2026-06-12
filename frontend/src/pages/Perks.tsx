@@ -25,8 +25,10 @@ export default function Perks() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  if (!location.state) return <Navigate to="/" />;
-  const { playerName, initialStatus } = location.state as any;
+  // Proteção contra tela branca caso o estado da navegação se perca
+  const state = location.state as any;
+  if (!state || !state.initialStatus) return <Navigate to="/" />;
+  const { playerName, initialStatus } = state;
 
   const [selectedPerks, setSelectedPerks] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'vantagens' | 'desvantagens'>('vantagens');

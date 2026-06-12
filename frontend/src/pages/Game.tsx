@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { getDilemmas, PERKS, type Option, type Outcome, type PlayerStatus } from '../data/dilemmas';
 import toast from 'react-hot-toast';
+import ConfirmExitModal from '../components/ConfirmExitModal';
 
 // Sintetizador de Áudio 8-bit nativo do navegador
 const playSound = (type: 'roll' | 'good' | 'bad' | 'click') => {
@@ -66,9 +67,10 @@ export default function Game() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Resgata os dados da tela inicial. Se a pessoa tentar acessar a rota direto pela URL, volta pro início.
-  if (!location.state) return <Navigate to="/" />;
-  const { playerName, initialStatus } = location.state as any;
+  // Proteção robusta contra Tela Branca: se o estado da navegação se perder, volta para o Início
+  const state = location.state as any;
+  if (!state || !state.initialStatus) return <Navigate to="/" />;
+  const { playerName, initialStatus } = state;
 
   const dilemmas = useMemo(() => getDilemmas(initialStatus.saldo), [initialStatus.saldo]);
 
@@ -80,6 +82,7 @@ export default function Game() {
 
   // Estado para evitar spam de cliques (cooldown/tempinho)
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
 
   // Estado e Função para os Textos Flutuantes Animados (Ganhos e Gastos)
   const [floatingTexts, setFloatingTexts] = useState<{ id: string, val: number, target: 'saldo' | 'reserva', label?: string }[]>([]);
@@ -108,15 +111,27 @@ export default function Game() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentDilemmaIndex]);
 
-  // Efeito para impedir que o jogador feche a aba acidentalmente
+  // Efeito para impedir que o jogador feche a aba acidentalmente ou use o botão voltar
   useEffect(() => {
+    // 1. Bloqueia o F5 e o fechamento da aba
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = ''; // Padrão para acionar o aviso do navegador
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // 2. Hack para interceptar o botão "Voltar" preservando o estado interno do React Router
+    const currentRouterState = window.history.state;
+    window.history.pushState(currentRouterState, '', window.location.href);
+    const handlePopState = () => {
+      window.history.pushState(currentRouterState, '', window.location.href); // Prende o jogador na tela atual
+      setShowExitModal(true); // Abre nosso modal de confirmação
+    };
+    window.addEventListener('popstate', handlePopState);
+
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
     };
   }, []);
 
@@ -340,13 +355,13 @@ export default function Game() {
       } else if (isColapso) {
         cause = 'colapso';
       }
-      navigate('/result', { state: { playerName, status: newStatus, month: currentDilemmaIndex + 1, isGameOver: true, cause, history: newHistory } });
+      navigate('/result', { replace: true, state: { playerName, status: newStatus, month: currentDilemmaIndex + 1, isGameOver: true, cause, history: newHistory } });
     } else if (currentDilemmaIndex < dilemmas.length - 1) {
       setCurrentDilemmaIndex(prev => prev + 1);
       setTimeout(() => setIsProcessing(false), 500);
     } else {
       // Fim do jogo: navega para a tela de resultados passando o status final
-      navigate('/result', { state: { playerName, status: newStatus, month: 12, isGameOver: false, history: newHistory } });
+      navigate('/result', { replace: true, state: { playerName, status: newStatus, month: 12, isGameOver: false, history: newHistory } });
     }
   };
 
@@ -436,7 +451,17 @@ export default function Game() {
         }
       `}</style>
 
-      <header className="max-w-2xl w-full flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-6 md:mb-8">
+      <header className="max-w-2xl w-full flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-6 md:mb-8 relative mt-6 md:mt-0">
+        <button 
+          onClick={() => {
+            playSound('click');
+            setShowExitModal(true);
+          }}
+          className="absolute -top-10 md:-top-6 right-0 text-xs font-bold text-slate-500 hover:text-red-400 transition-colors flex items-center gap-1 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700 hover:border-red-500/50"
+        >
+          🚪 Desistir
+        </button>
+
         <div>
           <span className="text-blue-400 font-bold tracking-widest text-sm uppercase mb-1 block">Mês {currentDilemmaIndex + 1} de 12</span>
           <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 tracking-tight">{months[currentDilemmaIndex]}</h1>
@@ -720,6 +745,15 @@ export default function Game() {
           </div>
         </div>
       )}
+
+      <ConfirmExitModal 
+        isOpen={showExitModal} 
+        onConfirm={() => navigate('/', { replace: true })} 
+        onCancel={() => {
+          playSound('click');
+          setShowExitModal(false);
+        }} 
+      />
     </div>
   );
 }

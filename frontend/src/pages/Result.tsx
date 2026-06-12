@@ -72,8 +72,10 @@ export default function Result() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  if (!location.state) return <Navigate to="/" />;
-  const { playerName, status, month, isGameOver, cause, history } = location.state as any;
+  // Proteção contra tela branca caso o estado da navegação se perca
+  const state = location.state as any;
+  if (!state || !state.status) return <Navigate to="/" />;
+  const { playerName, status, month, isGameOver, cause, history } = state;
 
   const finalScore = Math.floor((status.saudeFinanceira + status.qualidadeVida + Math.min(100, status.reservaEmergencia)) / 3);
 
