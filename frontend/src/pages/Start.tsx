@@ -61,9 +61,9 @@ export default function Start() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="max-w-xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700">
+      <div className="max-w-xl w-full bg-slate-800 p-6 md:p-8 rounded-3xl shadow-2xl border border-slate-700">
         <div className="flex flex-col items-center justify-center mb-8">
-          <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 text-center drop-shadow-sm tracking-tight">Setup do Jogador</h1>
+          <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 text-center drop-shadow-sm tracking-tight">Setup do Jogador</h1>
         </div>
         
         <form onSubmit={handleStartGame} className="flex flex-col gap-5">
@@ -73,7 +73,7 @@ export default function Start() {
               type="text" 
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              className="w-full p-4 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 text-white outline-none placeholder-slate-500 font-medium transition-colors"
+              className="w-full p-3 md:p-4 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 text-white outline-none placeholder-slate-500 font-medium transition-colors"
               placeholder="Ex: João Silva"
             />
           </div>
