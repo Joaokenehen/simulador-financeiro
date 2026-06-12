@@ -74,7 +74,7 @@ export default function Start() {
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               className="w-full p-3 md:p-4 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 text-white outline-none placeholder-slate-500 font-medium transition-colors"
-              placeholder="Ex: João Silva"
+              placeholder="Ex: João Gustavo"
             />
           </div>
 
